@@ -10,9 +10,11 @@ class User(AbstractUser):
 
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
-    role = models.CharField(max_length=20, choices=Role.choices)
+    role = models.CharField(max_length=20, choices=Role.choices, blank=True)
     phone_number = models.CharField(max_length=20, blank=True)
     emergency_phone_number = models.CharField(max_length=20, blank=True)
+
+    REQUIRED_FIELDS = ["first_name", "last_name"]
 
     def __str__(self):
         return self.username
