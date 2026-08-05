@@ -29,4 +29,26 @@ class UserModelTests(TestCase):
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
 
+    def test_user_roles_have_expected_values(self):
+        self.assertEqual(
+            set(User.Role.values),
+            {"teacher", "education_officer", "finance_officer"},
+        )
 
+    def test_business_roles_do_not_have_admin_access(self):
+        for role in User.Role.values:
+            user = User.objects.create_user(
+                username=f"{role}_user",
+                password="testpass123",
+                first_name="Test",
+                last_name="User",
+                role=role,
+            )
+
+            self.assertFalse(user.is_staff)
+            self.assertFalse(user.is_superuser)
+
+    def test_user_string_representation_is_username(self):
+        user = User(username="teacher1")
+
+        self.assertEqual(str(user), "teacher1")
