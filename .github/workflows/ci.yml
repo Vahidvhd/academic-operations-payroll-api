@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  POSTGRES_DB: instructor_payroll
+  POSTGRES_USER: instructor_payroll_user
+  POSTGRES_PASSWORD: test_password
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+
+        env:
+          POSTGRES_DB: instructor_payroll
+          POSTGRES_USER: instructor_payroll_user
+          POSTGRES_PASSWORD: test_password
+
+        ports:
+          - 5433:5432
+
+        options: >-
+          --health-cmd "pg_isready -U instructor_payroll_user -d instructor_payroll"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check Django project
+        run: python manage.py check
+
+      - name: Run tests
+        run: python manage.py test
+        
