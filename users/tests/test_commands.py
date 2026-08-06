@@ -134,3 +134,19 @@ class CreateUserCommandTests(TestCase):
             last_name="Test",
             phone_number="09123456789",
         )
+
+    @patch("users.management.commands.create_user.getpass", side_effect=["123", "123"])
+    def test_weak_password_is_rejected(self, mock_getpass):
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role=User.Role.TEACHER,
+            username="teacher_test",
+            first_name="Teacher",
+            last_name="Test",
+            phone_number="09123456789",
+            emergency_phone_number="09876543211",
+        )
+
+        self.assertFalse(User.objects.filter(username="teacher_test").exists())
