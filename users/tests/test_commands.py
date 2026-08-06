@@ -1,0 +1,152 @@
+from unittest.mock import patch
+
+
+from django.contrib.auth import get_user_model
+from django.core.management import CommandError, call_command
+from django.test import TestCase
+
+
+User = get_user_model()
+
+
+class CreateUserCommandTests(TestCase):
+    @patch(
+        "users.management.commands.create_user.getpass",
+        side_effect=["testpass123", "testpass123"],
+    )
+    def test_create_teacher(self, mock_getpass):
+        call_command(
+            "create_user",
+            role=User.Role.TEACHER,
+            username="teacher_test",
+            first_name="Teacher",
+            last_name="Test",
+            phone_number="09123456789",
+            emergency_phone_number="09876543211",
+        )
+
+        self.assertTrue(
+            User.objects.filter(username="teacher_test").exists()
+        )
+
+        user = User.objects.get(username="teacher_test")
+        self.assertEqual(user.role, User.Role.TEACHER)
+        self.assertEqual(user.phone_number, "09123456789")
+        self.assertEqual(user.emergency_phone_number, "09876543211")
+        self.assertTrue(user.check_password("testpass123"))
+
+    def test_duplicate_username_is_rejected(self):
+        User.objects.create_user(
+            username="teacher_test",
+            password="testpass123",
+            first_name="Teacher",
+            last_name="Test",
+            role=User.Role.TEACHER,
+            phone_number="09123456789",
+            emergency_phone_number="09876543211",
+        )
+
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role=User.Role.TEACHER,
+            username="teacher_test",
+            first_name="Teacher",
+            last_name="Test",
+            phone_number="09123456789",
+            emergency_phone_number="09876543211",
+        )
+
+    @patch(
+    "users.management.commands.create_user.getpass",
+    side_effect=["testpass123", "differentpass123"])
+    def test_password_mismatch_is_rejected(self, mock_getpass):
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role=User.Role.TEACHER,
+            username="teacher_test",
+            first_name="Teacher",
+            last_name="Test",
+            phone_number="09123456789",
+            emergency_phone_number="09876543211",
+        )
+
+        self.assertFalse(
+        User.objects.filter(username="teacher_test").exists()
+        )
+
+
+    def test_invalid_role_is_rejected(self):
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role="manager",
+        )
+
+    @patch(
+        "users.management.commands.create_user.getpass",
+        side_effect=["testpass123", "testpass123"],
+    )
+    def test_create_education_officer(self, mock_getpass):
+        call_command(
+            "create_user",
+            role=User.Role.EDUCATION_OFFICER,
+            username="education_test",
+            first_name="Education",
+            last_name="Test",
+        )
+
+        user = User.objects.get(username="education_test")
+
+        self.assertEqual(
+            user.role,
+            User.Role.EDUCATION_OFFICER,
+        )
+        self.assertTrue(user.check_password("testpass123"))
+
+    @patch("builtins.input", return_value="")
+    def test_teacher_without_phone_number_is_rejected(self, mock_input):
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role=User.Role.TEACHER,
+            username="teacher_test",
+            first_name="Teacher",
+            last_name="Test",
+            emergency_phone_number="09876543211",
+        )
+
+
+    @patch("builtins.input", return_value="")
+    def test_teacher_without_emergency_phone_number_is_rejected(self, mock_input):
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role=User.Role.TEACHER,
+            username="teacher_test",
+            first_name="Teacher",
+            last_name="Test",
+            phone_number="09123456789",
+        )
+
+    @patch("users.management.commands.create_user.getpass", side_effect=["123", "123"])
+    def test_weak_password_is_rejected(self, mock_getpass):
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role=User.Role.TEACHER,
+            username="teacher_test",
+            first_name="Teacher",
+            last_name="Test",
+            phone_number="09123456789",
+            emergency_phone_number="09876543211",
+        )
+
+        self.assertFalse(User.objects.filter(username="teacher_test").exists())
