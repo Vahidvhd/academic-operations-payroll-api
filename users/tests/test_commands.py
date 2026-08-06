@@ -73,6 +73,7 @@ class CreateUserCommandTests(TestCase):
             phone_number="09123456789",
             emergency_phone_number="09876543211",
         )
+
         self.assertFalse(
         User.objects.filter(username="teacher_test").exists()
         )
@@ -106,3 +107,30 @@ class CreateUserCommandTests(TestCase):
             User.Role.EDUCATION_OFFICER,
         )
         self.assertTrue(user.check_password("testpass123"))
+
+    @patch("builtins.input", return_value="")
+    def test_teacher_without_phone_number_is_rejected(self, mock_input):
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role=User.Role.TEACHER,
+            username="teacher_test",
+            first_name="Teacher",
+            last_name="Test",
+            emergency_phone_number="09876543211",
+        )
+
+
+    @patch("builtins.input", return_value="")
+    def test_teacher_without_emergency_phone_number_is_rejected(self, mock_input):
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role=User.Role.TEACHER,
+            username="teacher_test",
+            first_name="Teacher",
+            last_name="Test",
+            phone_number="09123456789",
+        )
