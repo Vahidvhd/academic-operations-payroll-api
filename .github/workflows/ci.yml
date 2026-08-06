@@ -52,6 +52,7 @@ jobs:
       - name: Check Django project
         run: python manage.py check
 
-      - name: Run tests
-        run: python manage.py test
-        
+      - name: Run tests with coverage
+        run: |
+          python -m coverage run manage.py test
+          python -m coverage report
