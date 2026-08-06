@@ -81,3 +81,17 @@ class AuthenticationTests(APITestCase):
 
         self.assertEqual(response.status_code,status.HTTP_200_OK)
         self.assertIn("access", response.data)
+
+    def test_user_cannot_obtain_tokens_with_wrong_password(self):
+        url = reverse("token_obtain_pair")
+
+        response = self.client.post(
+            url,
+            {
+                "username": self.user.username,
+                "password": "WrongPassword",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
