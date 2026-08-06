@@ -57,3 +57,52 @@ class CreateUserCommandTests(TestCase):
             phone_number="09123456789",
             emergency_phone_number="09876543211",
         )
+
+    @patch(
+    "users.management.commands.create_user.getpass",
+    side_effect=["testpass123", "differentpass123"])
+    def test_password_mismatch_is_rejected(self, mock_getpass):
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role=User.Role.TEACHER,
+            username="teacher_test",
+            first_name="Teacher",
+            last_name="Test",
+            phone_number="09123456789",
+            emergency_phone_number="09876543211",
+        )
+        self.assertFalse(
+        User.objects.filter(username="teacher_test").exists()
+        )
+
+
+    def test_invalid_role_is_rejected(self):
+        self.assertRaises(
+            CommandError,
+            call_command,
+            "create_user",
+            role="manager",
+        )
+
+    @patch(
+        "users.management.commands.create_user.getpass",
+        side_effect=["testpass123", "testpass123"],
+    )
+    def test_create_education_officer(self, mock_getpass):
+        call_command(
+            "create_user",
+            role=User.Role.EDUCATION_OFFICER,
+            username="education_test",
+            first_name="Education",
+            last_name="Test",
+        )
+
+        user = User.objects.get(username="education_test")
+
+        self.assertEqual(
+            user.role,
+            User.Role.EDUCATION_OFFICER,
+        )
+        self.assertTrue(user.check_password("testpass123"))
