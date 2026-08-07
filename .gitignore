@@ -20,6 +20,7 @@ media/
 # Tests and coverage
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 
 # Editors and operating systems
