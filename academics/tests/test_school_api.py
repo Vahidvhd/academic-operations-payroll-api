@@ -152,3 +152,9 @@ class SchoolAPITests(APITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 404)
+
+
+    def test_anonymous_user_cannot_list_schools(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
