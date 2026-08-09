@@ -292,3 +292,47 @@ class TermAPITests(APITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 404)
+
+
+    def test_term_type_must_be_valid(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "start_date": "2027-01-01",
+                "end_date": "2027-03-31",
+                "term_type": "invalid",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("term_type", response.data)
+
+
+    def test_term_dates_are_required(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "term_type": "regular",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("start_date", response.data)
+        self.assertIn("end_date", response.data)
+
+
+    def test_term_string_representation(self):
+        term = Term.objects.create(
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            term_type="regular",
+        )
+
+        self.assertEqual(
+            str(term),
+            "Regular (2026-09-01 - 2026-12-31)",
+        )
