@@ -30,19 +30,11 @@ class TermSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def validate(self, attrs):
-        if self.instance:
-            term = Term(
-                pk=self.instance.pk,
-                start_date=attrs.get("start_date", self.instance.start_date),
-                end_date=attrs.get("end_date", self.instance.end_date),
-                term_type=attrs.get("term_type", self.instance.term_type),
-            )
-        else:
-            term = Term(
-                start_date=attrs.get("start_date"),
-                end_date=attrs.get("end_date"),
-                term_type=attrs.get("term_type"),
-            )
+        term = Term(
+            start_date=attrs.get("start_date"),
+            end_date=attrs.get("end_date"),
+            term_type=attrs.get("term_type"),
+        )
 
         try:
             term.clean()
