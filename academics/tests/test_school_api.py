@@ -4,7 +4,6 @@ from rest_framework.test import APITestCase
 
 from academics.models import School
 
-
 User = get_user_model()
 
 

@@ -1,6 +1,7 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from .models import School
+from .models import School, Term
 
 
 class SchoolSerializer(serializers.ModelSerializer):
@@ -13,3 +14,31 @@ class SchoolSerializer(serializers.ModelSerializer):
                   "updated_at"
                   ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class TermSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Term
+        fields = [
+            "id",
+            "start_date",
+            "end_date",
+            "term_type",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        term = Term(
+            start_date=attrs.get("start_date"),
+            end_date=attrs.get("end_date"),
+            term_type=attrs.get("term_type"),
+        )
+
+        try:
+            term.clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
+
+        return attrs
