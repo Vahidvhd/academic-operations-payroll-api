@@ -259,3 +259,36 @@ class TermAPITests(APITestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 401)
+
+
+    def test_soft_deleted_term_is_not_listed(self):
+        Term.objects.create(
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            term_type="regular",
+            is_deleted=True,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "2026-09-01")
+
+
+    def test_soft_deleted_term_detail_returns_404(self):
+        term = Term.objects.create(
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            term_type="regular",
+            is_deleted=True,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("term-detail", args=[term.id])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
