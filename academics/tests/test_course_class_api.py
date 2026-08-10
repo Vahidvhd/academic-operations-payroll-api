@@ -317,3 +317,9 @@ class CourseClassAPITests(APITestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 403)
+
+
+    def test_anonymous_user_cannot_list_course_classes(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
