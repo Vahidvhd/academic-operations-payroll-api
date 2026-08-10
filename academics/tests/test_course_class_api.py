@@ -323,3 +323,46 @@ class CourseClassAPITests(APITestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 401)
+
+
+    def test_education_officer_can_list_course_classes(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY112",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertIn(course_class.id, returned_ids)
+
+
+    def test_education_officer_can_retrieve_course_class(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY113",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], course_class.id)
