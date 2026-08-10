@@ -216,3 +216,72 @@ class CourseClassAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("end_date", response.data)
+
+
+    def test_education_officer_can_soft_delete_course_class(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY109",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 204)
+
+        course_class.refresh_from_db()
+
+        self.assertTrue(course_class.is_deleted)
+        self.assertIsNotNone(course_class.deleted_at)
+
+
+    def test_soft_deleted_course_class_is_not_in_list(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY110",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+            is_deleted=True,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertNotIn(course_class.id, returned_ids)
+
+
+    def test_soft_deleted_course_class_detail_returns_404(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY111",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+            is_deleted=True,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
