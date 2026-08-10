@@ -46,6 +46,7 @@ class TermSerializer(serializers.ModelSerializer):
 
 class CourseClassSerializer(serializers.ModelSerializer):
     school = serializers.PrimaryKeyRelatedField(queryset=School.objects.filter(is_deleted=False))
+    term = serializers.PrimaryKeyRelatedField(queryset=Term.objects.filter(is_deleted=False))
     class Meta:
         model = CourseClass
         fields = [
