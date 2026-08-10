@@ -73,3 +73,65 @@ class CourseClassAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("end_date", response.data)
+
+
+    def test_course_class_cannot_start_before_term(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "school": self.school.id,
+                "term": self.term.id,
+                "title": "Python",
+                "class_code": "PY103",
+                "start_date": "2026-08-31",
+                "end_date": "2026-12-31",
+                "session_duration": 90,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("start_date", response.data)
+
+
+    def test_course_class_cannot_end_after_term(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "school": self.school.id,
+                "term": self.term.id,
+                "title": "Python",
+                "class_code": "PY104",
+                "start_date": "2026-09-01",
+                "end_date": "2027-01-01",
+                "session_duration": 90,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("end_date", response.data)
+
+
+    def test_course_class_rejects_invalid_session_duration(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "school": self.school.id,
+                "term": self.term.id,
+                "title": "Python",
+                "class_code": "PY105",
+                "start_date": "2026-09-01",
+                "end_date": "2026-12-31",
+                "session_duration": 45,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("session_duration", response.data)
+
+
