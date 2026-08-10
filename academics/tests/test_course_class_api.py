@@ -435,3 +435,29 @@ class CourseClassAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 201)
+
+
+    def test_course_class_cannot_use_soft_deleted_school(self):
+        deleted_school = School.objects.create(
+            name="Deleted School",
+            address="London",
+            is_deleted=True,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "school": deleted_school.id,
+                "term": self.term.id,
+                "title": "Python",
+                "class_code": "PY116",
+                "start_date": "2026-09-01",
+                "end_date": "2026-12-31",
+                "session_duration": 90,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("school", response.data)

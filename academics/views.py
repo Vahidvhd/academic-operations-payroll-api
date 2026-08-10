@@ -5,7 +5,7 @@ from rest_framework.exceptions import ValidationError
 from users.permissions import IsEducationOfficer
 
 from .models import CourseClass, School, Term
-from .serializers import SchoolSerializer, TermSerializer, CourseClassSerializer
+from .serializers import CourseClassSerializer, SchoolSerializer, TermSerializer
 
 
 class SchoolViewSet(viewsets.ModelViewSet):

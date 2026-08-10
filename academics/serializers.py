@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from .models import School, Term, CourseClass
+from .models import CourseClass, School, Term
 
 
 class SchoolSerializer(serializers.ModelSerializer):
@@ -45,6 +45,7 @@ class TermSerializer(serializers.ModelSerializer):
 
 
 class CourseClassSerializer(serializers.ModelSerializer):
+    school = serializers.PrimaryKeyRelatedField(queryset=School.objects.filter(is_deleted=False))
     class Meta:
         model = CourseClass
         fields = [
