@@ -366,3 +366,72 @@ class CourseClassAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["id"], course_class.id)
+
+
+    def test_same_class_code_is_allowed_for_different_school(self):
+        other_school = School.objects.create(
+            name="Other School",
+            address="Manchester",
+        )
+
+        CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY114",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "school": other_school.id,
+                "term": self.term.id,
+                "title": "Python Advanced",
+                "class_code": "PY114",
+                "start_date": "2026-09-01",
+                "end_date": "2026-12-31",
+                "session_duration": 90,
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+
+
+    def test_same_class_code_is_allowed_for_different_term(self):
+        other_term = Term.objects.create(
+            start_date="2027-01-01",
+            end_date="2027-03-31",
+            term_type="regular",
+        )
+
+        CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY115",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "school": self.school.id,
+                "term": other_term.id,
+                "title": "Python Advanced",
+                "class_code": "PY115",
+                "start_date": "2027-01-01",
+                "end_date": "2027-03-31",
+                "session_duration": 90,
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
