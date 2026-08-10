@@ -27,6 +27,23 @@ class CourseClassAPITests(APITestCase):
             term_type="regular",
         )
 
+        self.teacher = User.objects.create_user(
+            username="teacher",
+            first_name="Test",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07111111111",
+            emergency_phone_number="07222222222",
+        )
+
+
+        self.finance_officer = User.objects.create_user(
+            username="finance",
+            first_name="Test",
+            last_name="Finance",
+            role=User.Role.FINANCE_OFFICER,
+        )
+
         self.url = reverse("course-class-list")
 
     def test_education_officer_can_create_course_class(self):
@@ -285,3 +302,18 @@ class CourseClassAPITests(APITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 404)
+
+    def test_teacher_cannot_list_course_classes(self):
+        self.client.force_authenticate(user=self.teacher)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_finance_officer_cannot_list_course_classes(self):
+        self.client.force_authenticate(user=self.finance_officer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 403)
