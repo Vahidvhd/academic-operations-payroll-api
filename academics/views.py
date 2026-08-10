@@ -4,8 +4,8 @@ from rest_framework.exceptions import ValidationError
 
 from users.permissions import IsEducationOfficer
 
-from .models import School, Term
-from .serializers import SchoolSerializer, TermSerializer
+from .models import CourseClass, School, Term
+from .serializers import CourseClassSerializer, SchoolSerializer, TermSerializer
 
 
 class SchoolViewSet(viewsets.ModelViewSet):
@@ -31,6 +31,17 @@ class TermViewSet(viewsets.ModelViewSet):
                 {"detail": "A term with classes cannot be deleted."}
             )
 
+        instance.is_deleted = True
+        instance.deleted_at = timezone.now()
+        instance.save()
+
+
+class CourseClassViewSet(viewsets.ModelViewSet):
+    queryset = CourseClass.objects.filter(is_deleted=False)
+    serializer_class = CourseClassSerializer
+    permission_classes = [IsEducationOfficer]
+
+    def perform_destroy(self, instance):
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()
