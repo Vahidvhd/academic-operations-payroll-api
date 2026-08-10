@@ -163,4 +163,56 @@ class CourseClassAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    def test_education_officer_can_partially_update_course_class(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY107",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
 
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.patch(
+            url,
+            {
+                "title": "Python Advanced",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        course_class.refresh_from_db()
+
+        self.assertEqual(course_class.title, "Python Advanced")
+
+
+    def test_partial_update_rejects_invalid_course_class_dates(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY108",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.patch(
+            url,
+            {
+                "start_date": "2027-01-01",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("end_date", response.data)
