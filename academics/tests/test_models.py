@@ -1,9 +1,12 @@
 from datetime import date
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from academics.models import School, Term, CourseClass
+from academics.models import CourseClass, School, TeacherClassAssignment, Term
+
+User = get_user_model()
 
 
 class SchoolModelTests(TestCase):
@@ -171,3 +174,55 @@ class CourseClassModelTests(TestCase):
         )
 
         self.assertRaises(ValidationError, course_class.full_clean)
+
+
+class TeacherClassAssignmentModelTests(TestCase):
+    def setUp(self):
+        self.teacher = User.objects.create_user(
+            username="teacher1",
+            password="testpass123",
+            first_name="Test",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        self.school = School.objects.create(
+            name="Test School",
+            address="Test Address",
+        )
+
+        self.term = Term.objects.create(
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            term_type=Term.TermType.REGULAR,
+        )
+
+        self.course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY-101",
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            session_duration=CourseClass.SessionDuration.NINETY,
+        )
+
+    def test_end_date_cannot_be_before_start_date(self):
+        assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 20),
+            end_date=date(2026, 3, 10),
+        )
+
+        self.assertRaises(ValidationError, assignment.full_clean)
+
+    def test_assignment_cannot_start_before_class(self):
+        assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 2, 28),
+            end_date=date(2026, 3, 10),
+        )
+
+        self.assertRaises(ValidationError, assignment.full_clean)
