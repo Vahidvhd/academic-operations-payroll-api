@@ -1,5 +1,6 @@
 import calendar
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -111,3 +112,60 @@ class CourseClass(TimeStampedModel, SoftDeleteModel):
 
     def __str__(self):
         return f"{self.title} ({self.class_code})"
+
+
+class TeacherClassAssignment(TimeStampedModel):
+    teacher = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="class_assignments")
+    course_class = models.ForeignKey(
+        CourseClass,
+        on_delete=models.PROTECT,
+        related_name="teacher_assignments")
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+
+    def clean(self):
+        super().clean()
+
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValidationError({"end_date": "End date cannot be before start date."})
+
+        if (
+            self.course_class_id
+            and self.start_date
+            and self.start_date < self.course_class.start_date
+        ):
+            raise ValidationError({"start_date": "Assignment cannot start before the class starts."})
+
+        if (
+            self.course_class_id
+            and self.end_date
+            and self.end_date > self.course_class.end_date
+        ):
+            raise ValidationError({"end_date": "Assignment cannot end after the class ends."})
+        
+        if (
+            self.course_class_id
+            and self.start_date
+            and self.start_date > self.course_class.end_date
+        ):
+            raise ValidationError({"start_date": "Assignment cannot start after the class ends."})
+
+        if self.teacher_id and self.teacher.role != "teacher":
+            raise ValidationError({"teacher": "Selected user must have the teacher role."})
+
+        if self.course_class_id and self.start_date:
+            new_end = self.end_date or self.course_class.end_date
+
+            overlapping_assignments = TeacherClassAssignment.objects.filter(
+                course_class=self.course_class,
+                start_date__lte=new_end,
+            ).exclude(
+                end_date__lt=self.start_date,
+            )
+            if self.pk:
+                overlapping_assignments = overlapping_assignments.exclude(pk=self.pk)
+            if overlapping_assignments.exists():
+                raise ValidationError({"start_date": "Assignment dates cannot overlap with another assignment for this class."})
