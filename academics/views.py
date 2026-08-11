@@ -4,8 +4,8 @@ from rest_framework.exceptions import ValidationError
 
 from users.permissions import IsEducationOfficer
 
-from .models import CourseClass, School, Term
-from .serializers import CourseClassSerializer, SchoolSerializer, TermSerializer
+from .models import CourseClass, School, Term, TeacherClassAssignment
+from .serializers import CourseClassSerializer, SchoolSerializer, TermSerializer, TeacherClassAssignmentSerializer
 
 
 class SchoolViewSet(viewsets.ModelViewSet):
@@ -45,3 +45,9 @@ class CourseClassViewSet(viewsets.ModelViewSet):
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()
+
+
+class TeacherClassAssignmentViewSet(viewsets.ModelViewSet):
+    queryset = TeacherClassAssignment.objects.all()
+    serializer_class = TeacherClassAssignmentSerializer
+    permission_classes = [IsEducationOfficer]
