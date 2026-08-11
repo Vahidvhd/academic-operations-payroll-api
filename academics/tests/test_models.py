@@ -393,3 +393,96 @@ class TeacherClassAssignmentModelTests(TestCase):
         assignment.end_date = date(2026, 3, 12)
 
         assignment.full_clean()
+
+
+    def test_assignments_for_different_classes_can_overlap(self):
+        second_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django Basics",
+            class_code="DJ-101",
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            session_duration=CourseClass.SessionDuration.NINETY,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 20),
+        )
+
+        assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=second_course_class,
+            start_date=date(2026, 3, 10),
+            end_date=date(2026, 3, 25),
+        )
+
+        assignment.full_clean()
+
+
+    def test_assignments_cannot_share_the_same_boundary_date(self):
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 10),
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            password="testpass123",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        assignment = TeacherClassAssignment(
+            teacher=second_teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 10),
+            end_date=date(2026, 3, 20),
+        )
+
+        self.assertRaises(ValidationError, assignment.full_clean)
+
+
+    def test_updating_assignment_cannot_create_overlap(self):
+        first_assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 10),
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            password="testpass123",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=second_teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 15),
+            end_date=date(2026, 3, 25),
+        )
+
+        first_assignment.end_date = date(2026, 3, 20)
+
+        self.assertRaises(ValidationError, first_assignment.full_clean)
+
+
+    def test_assignment_can_have_no_end_date(self):
+        assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=None,
+        )
+
+        assignment.full_clean()
