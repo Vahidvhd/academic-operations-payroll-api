@@ -2,10 +2,10 @@ from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
 
-from users.permissions import IsEducationOfficer
+from users.permissions import IsEducationOfficer, IsEducationOfficerOrTeacher
 
-from .models import CourseClass, School, Term, TeacherClassAssignment
-from .serializers import CourseClassSerializer, SchoolSerializer, TermSerializer, TeacherClassAssignmentSerializer
+from .models import CourseClass, School, TeacherClassAssignment, Term
+from .serializers import CourseClassSerializer, SchoolSerializer, TeacherClassAssignmentSerializer, TermSerializer
 
 
 class SchoolViewSet(viewsets.ModelViewSet):
@@ -39,14 +39,24 @@ class TermViewSet(viewsets.ModelViewSet):
 class CourseClassViewSet(viewsets.ModelViewSet):
     queryset = CourseClass.objects.filter(is_deleted=False)
     serializer_class = CourseClassSerializer
-    permission_classes = [IsEducationOfficer]
+    permission_classes = [IsEducationOfficerOrTeacher]
+
+    def get_queryset(self):
+        queryset = CourseClass.objects.filter(is_deleted=False)
+
+        if self.request.user.role == "teacher":
+            return queryset.filter(
+                teacher_assignments__teacher=self.request.user
+            ).distinct()
+
+        return queryset
 
     def perform_destroy(self, instance):
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()
 
-
+        
 class TeacherClassAssignmentViewSet(viewsets.ModelViewSet):
     queryset = TeacherClassAssignment.objects.all()
     serializer_class = TeacherClassAssignmentSerializer
