@@ -244,4 +244,126 @@ class TeacherClassAssignmentAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("start_date", response.data)
-        
+
+
+    def test_sequential_assignments_are_allowed(self):
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-10-15",
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07555555555",
+            emergency_phone_number="07666666666",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "teacher": second_teacher.id,
+                "course_class": self.course_class.id,
+                "start_date": "2026-10-16",
+                "end_date": "2026-11-30",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+
+
+    def test_education_officer_can_update_assignment_end_date(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-10-15",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("teacher-class-assignment-detail", args=[assignment.id])
+
+        response = self.client.patch(
+            url,
+            {
+                "end_date": "2026-10-31",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        assignment.refresh_from_db()
+
+        self.assertEqual(str(assignment.end_date),"2026-10-31")
+
+
+    def test_updating_assignment_cannot_create_overlap(self):
+        first_assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-10-15",
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07555555555",
+            emergency_phone_number="07666666666",
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=second_teacher,
+            course_class=self.course_class,
+            start_date="2026-10-16",
+            end_date="2026-11-30",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[first_assignment.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {
+                "end_date": "2026-10-20",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("start_date", response.data)
+
+
+    def test_teacher_cannot_list_teacher_class_assignments(self):
+        self.client.force_authenticate(user=self.teacher)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_finance_officer_cannot_list_teacher_class_assignments(self):
+        finance_officer = User.objects.create_user(
+            username="finance",
+            first_name="Test",
+            last_name="Finance",
+            role=User.Role.FINANCE_OFFICER,
+        )
+
+        self.client.force_authenticate(user=finance_officer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 403)
