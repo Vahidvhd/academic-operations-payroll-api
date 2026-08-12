@@ -367,3 +367,49 @@ class TeacherClassAssignmentAPITests(APITestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 403)
+
+
+    def test_anonymous_user_cannot_list_teacher_class_assignments(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
+
+
+    def test_education_officer_can_list_teacher_class_assignments(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-10-31",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertIn(assignment.id, returned_ids)
+
+
+    def test_education_officer_can_retrieve_teacher_class_assignment(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-10-31",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[assignment.id],
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], assignment.id)
