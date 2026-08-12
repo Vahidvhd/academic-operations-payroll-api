@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
 User = get_user_model()
@@ -32,4 +32,19 @@ class IsFinanceOfficer(BasePermission):
         return (
             request.user.is_authenticated
             and request.user.role == User.Role.FINANCE_OFFICER
+        )
+
+class IsEducationOfficerOrTeacher(BasePermission):
+    message = "User does not have permission."
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+
+        if request.user.role == User.Role.EDUCATION_OFFICER:
+            return True
+
+        return (
+            request.user.role == User.Role.TEACHER
+            and request.method in SAFE_METHODS
         )
