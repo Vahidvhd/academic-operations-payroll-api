@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from academics.models import CourseClass, School, Term
+from academics.models import CourseClass, School, Term, TeacherClassAssignment
 
 User = get_user_model()
 
@@ -303,10 +303,167 @@ class CourseClassAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_teacher_cannot_list_course_classes(self):
+    def test_teacher_can_list_only_assigned_course_classes(self):
+        assigned_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Assigned Class",
+            class_code="PY118",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        unassigned_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Unassigned Class",
+            class_code="PY119",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=assigned_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
         self.client.force_authenticate(user=self.teacher)
 
         response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertIn(assigned_class.id, returned_ids)
+        self.assertNotIn(unassigned_class.id, returned_ids)
+
+    def test_teacher_can_retrieve_assigned_course_class(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Assigned Class",
+            class_code="PY120",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], course_class.id)
+
+
+    def test_teacher_cannot_retrieve_unassigned_course_class(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Unassigned Class",
+            class_code="PY121",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+
+    def test_teacher_cannot_create_course_class(self):
+        self.client.force_authenticate(user=self.teacher)
+
+        response = self.client.post(
+            self.url,
+            {
+                "school": self.school.id,
+                "term": self.term.id,
+                "title": "Python",
+                "class_code": "PY122",
+                "start_date": "2026-09-01",
+                "end_date": "2026-12-31",
+                "session_duration": 90,
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_teacher_cannot_update_assigned_course_class(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Assigned Class",
+            class_code="PY123",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.patch(
+            url,
+            {
+                "title": "Changed Title",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_teacher_cannot_delete_assigned_course_class(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Assigned Class",
+            class_code="PY124",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.delete(url)
 
         self.assertEqual(response.status_code, 403)
 

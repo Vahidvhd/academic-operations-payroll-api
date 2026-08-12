@@ -1,9 +1,12 @@
 from datetime import date
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from academics.models import School, Term, CourseClass
+from academics.models import CourseClass, School, TeacherClassAssignment, Term
+
+User = get_user_model()
 
 
 class SchoolModelTests(TestCase):
@@ -171,3 +174,315 @@ class CourseClassModelTests(TestCase):
         )
 
         self.assertRaises(ValidationError, course_class.full_clean)
+
+
+class TeacherClassAssignmentModelTests(TestCase):
+    def setUp(self):
+        self.teacher = User.objects.create_user(
+            username="teacher1",
+            password="testpass123",
+            first_name="Test",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        self.school = School.objects.create(
+            name="Test School",
+            address="Test Address",
+        )
+
+        self.term = Term.objects.create(
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            term_type=Term.TermType.REGULAR,
+        )
+
+        self.course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY-101",
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            session_duration=CourseClass.SessionDuration.NINETY,
+        )
+
+
+    def test_end_date_cannot_be_before_start_date(self):
+        assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 20),
+            end_date=date(2026, 3, 10),
+        )
+
+        self.assertRaises(ValidationError, assignment.full_clean)
+
+
+    def test_assignment_cannot_start_before_class(self):
+        assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 2, 28),
+            end_date=date(2026, 3, 10),
+        )
+
+        self.assertRaises(ValidationError, assignment.full_clean)
+
+
+    def test_assignment_cannot_end_after_class(self):
+        assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 10),
+            end_date=date(2026, 4, 1),
+        )
+
+        self.assertRaises(ValidationError, assignment.full_clean)
+
+
+    def test_assignment_cannot_start_after_class(self):
+        assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 4, 1),
+            end_date=date(2026, 4, 5),
+        )
+
+        self.assertRaises(ValidationError, assignment.full_clean)
+
+
+    def test_selected_user_must_have_teacher_role(self):
+        education_officer = User.objects.create_user(
+            username="education1",
+            password="testpass123",
+            first_name="Test",
+            last_name="Officer",
+            role=User.Role.EDUCATION_OFFICER,
+        )
+
+        assignment = TeacherClassAssignment(
+            teacher=education_officer,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 10),
+        )
+
+        self.assertRaises(ValidationError, assignment.full_clean)
+
+
+    def test_assignments_for_same_class_cannot_overlap(self):
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 10),
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            password="testpass123",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        overlapping_assignment = TeacherClassAssignment(
+            teacher=second_teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 5),
+            end_date=date(2026, 3, 15),
+        )
+
+        self.assertRaises(ValidationError, overlapping_assignment.full_clean)
+
+
+    def test_open_assignment_cannot_overlap_with_new_assignment(self):
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=None,
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            password="testpass123",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        overlapping_assignment = TeacherClassAssignment(
+            teacher=second_teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 15),
+            end_date=date(2026, 3, 20),
+        )
+
+        self.assertRaises(ValidationError, overlapping_assignment.full_clean)
+
+
+    def test_sequential_assignments_are_allowed(self):
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 10),
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            password="testpass123",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        assignment = TeacherClassAssignment(
+            teacher=second_teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 11),
+            end_date=date(2026, 3, 20),
+        )
+
+        assignment.full_clean()
+
+
+    def test_same_teacher_can_be_assigned_again_later(self):
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 10),
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            password="testpass123",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=second_teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 11),
+            end_date=date(2026, 3, 20),
+        )
+
+        returning_assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 21),
+            end_date=date(2026, 3, 31),
+        )
+
+        returning_assignment.full_clean()
+
+
+    def test_assignment_can_be_updated_without_overlapping_with_itself(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 10),
+        )
+
+        assignment.end_date = date(2026, 3, 12)
+
+        assignment.full_clean()
+
+
+    def test_assignments_for_different_classes_can_overlap(self):
+        second_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django Basics",
+            class_code="DJ-101",
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            session_duration=CourseClass.SessionDuration.NINETY,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 20),
+        )
+
+        assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=second_course_class,
+            start_date=date(2026, 3, 10),
+            end_date=date(2026, 3, 25),
+        )
+
+        assignment.full_clean()
+
+
+    def test_assignments_cannot_share_the_same_boundary_date(self):
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 10),
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            password="testpass123",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        assignment = TeacherClassAssignment(
+            teacher=second_teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 10),
+            end_date=date(2026, 3, 20),
+        )
+
+        self.assertRaises(ValidationError, assignment.full_clean)
+
+
+    def test_updating_assignment_cannot_create_overlap(self):
+        first_assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 10),
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            password="testpass123",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=second_teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 15),
+            end_date=date(2026, 3, 25),
+        )
+
+        first_assignment.end_date = date(2026, 3, 20)
+
+        self.assertRaises(ValidationError, first_assignment.full_clean)
+
+
+    def test_assignment_can_have_no_end_date(self):
+        assignment = TeacherClassAssignment(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=None,
+        )
+
+        assignment.full_clean()
