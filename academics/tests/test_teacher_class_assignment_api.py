@@ -47,3 +47,117 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.url = reverse("teacher-class-assignment-list")
+
+
+    def test_education_officer_can_create_teacher_class_assignment(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "teacher": self.teacher.id,
+                "course_class": self.course_class.id,
+                "start_date": "2026-09-01",
+                "end_date": "2026-10-31",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+
+        self.assertTrue(TeacherClassAssignment.objects.filter(teacher=self.teacher,course_class=self.course_class).exists())
+
+
+    def test_cannot_assign_non_teacher_user(self):
+        finance_officer = User.objects.create_user(
+            username="finance",
+            first_name="Test",
+            last_name="Finance",
+            role=User.Role.FINANCE_OFFICER,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "teacher": finance_officer.id,
+                "course_class": self.course_class.id,
+                "start_date": "2026-09-01",
+                "end_date": "2026-10-31",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("teacher", response.data)
+
+
+    def test_cannot_assign_inactive_teacher(self):
+        inactive_teacher = User.objects.create_user(
+            username="inactive_teacher",
+            first_name="Inactive",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07333333333",
+            emergency_phone_number="07444444444",
+            is_active=False,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "teacher": inactive_teacher.id,
+                "course_class": self.course_class.id,
+                "start_date": "2026-09-01",
+                "end_date": "2026-10-31",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("teacher", response.data)
+
+
+    def test_cannot_assign_teacher_to_soft_deleted_course_class(self):
+        deleted_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Deleted Class",
+            class_code="PY102",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+            is_deleted=True,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "teacher": self.teacher.id,
+                "course_class": deleted_course_class.id,
+                "start_date": "2026-09-01",
+                "end_date": "2026-10-31",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("course_class", response.data)
+
+
+    def test_assignment_cannot_start_before_course_class(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "teacher": self.teacher.id,
+                "course_class": self.course_class.id,
+                "start_date": "2026-08-31",
+                "end_date": "2026-10-31",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("start_date", response.data)
