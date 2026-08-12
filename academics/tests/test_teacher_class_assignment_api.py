@@ -464,3 +464,20 @@ class TeacherClassAssignmentAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("start_date", response.data)
+
+
+    def test_assignment_end_date_cannot_be_before_start_date(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "teacher": self.teacher.id,
+                "course_class": self.course_class.id,
+                "start_date": "2026-10-15",
+                "end_date": "2026-10-01",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("end_date", response.data)
