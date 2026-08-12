@@ -413,3 +413,54 @@ class TeacherClassAssignmentAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["id"], assignment.id)
+
+
+    def test_assignment_can_have_no_end_date(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "teacher": self.teacher.id,
+                "course_class": self.course_class.id,
+                "start_date": "2026-09-01",
+                "end_date": None,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(response.data["end_date"])
+
+
+    def test_assignments_cannot_share_same_boundary_date(self):
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-10-15",
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07555555555",
+            emergency_phone_number="07666666666",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "teacher": second_teacher.id,
+                "course_class": self.course_class.id,
+                "start_date": "2026-10-15",
+                "end_date": "2026-11-30",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("start_date", response.data)
