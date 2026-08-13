@@ -4,8 +4,14 @@ from rest_framework.exceptions import ValidationError
 
 from users.permissions import IsEducationOfficer, IsEducationOfficerOrTeacher
 
+from .filters import CourseClassFilter
 from .models import CourseClass, School, TeacherClassAssignment, Term
-from .serializers import CourseClassSerializer, SchoolSerializer, TeacherClassAssignmentSerializer, TermSerializer
+from .serializers import (
+    CourseClassSerializer,
+    SchoolSerializer,
+    TeacherClassAssignmentSerializer,
+    TermSerializer,
+)
 
 
 class SchoolViewSet(viewsets.ModelViewSet):
@@ -40,6 +46,7 @@ class CourseClassViewSet(viewsets.ModelViewSet):
     queryset = CourseClass.objects.filter(is_deleted=False)
     serializer_class = CourseClassSerializer
     permission_classes = [IsEducationOfficerOrTeacher]
+    filterset_class = CourseClassFilter
 
     def get_queryset(self):
         queryset = CourseClass.objects.filter(is_deleted=False)
