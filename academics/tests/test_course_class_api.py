@@ -648,7 +648,6 @@ class CourseClassAPITests(APITestCase):
 
 
     # Filtering
-
     def test_course_classes_can_be_filtered_by_school(self):
         other_school = School.objects.create(
             name="Other School",
@@ -883,3 +882,47 @@ class CourseClassAPITests(APITestCase):
         returned_ids = [item["id"] for item in response.data]
 
         self.assertEqual(returned_ids.count(course_class.id), 1)
+
+
+    # Search
+    def test_course_classes_can_be_searched_by_school_name(self):
+        other_school = School.objects.create(
+            name="Manchester Academy",
+            address="Manchester",
+        )
+
+        matching_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY301",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        other_class = CourseClass.objects.create(
+            school=other_school,
+            term=self.term,
+            title="Django",
+            class_code="DJ301",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"search": self.school.name},
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertIn(matching_class.id, returned_ids)
+        self.assertNotIn(other_class.id, returned_ids)
+
+

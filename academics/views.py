@@ -47,6 +47,12 @@ class CourseClassViewSet(viewsets.ModelViewSet):
     serializer_class = CourseClassSerializer
     permission_classes = [IsEducationOfficerOrTeacher]
     filterset_class = CourseClassFilter
+    search_fields = [
+        "school__name",
+        "term__term_type",
+        "teacher_assignments__teacher__first_name",
+        "teacher_assignments__teacher__last_name",
+    ]
 
     def get_queryset(self):
         queryset = CourseClass.objects.filter(is_deleted=False)
