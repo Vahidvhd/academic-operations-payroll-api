@@ -1033,4 +1033,72 @@ class CourseClassAPITests(APITestCase):
         returned_ids = [item["id"] for item in response.data]
 
         self.assertIn(matching_class.id, returned_ids)
-        self.assertNotIn(other_class.id, returned_ids)   
+        self.assertNotIn(other_class.id, returned_ids)
+
+
+    def test_course_classes_can_be_searched_by_teacher_last_name(self):
+        matching_teacher = User.objects.create_user(
+            username="matching_search_teacher_last_name",
+            first_name="Vahid",
+            last_name="Vahedi",
+            role=User.Role.TEACHER,
+            phone_number="07123456789",
+            emergency_phone_number="07987654321",
+        )
+
+        other_teacher = User.objects.create_user(
+            username="search_other_teacher_last_name",
+            first_name="David",
+            last_name="Miller",
+            role=User.Role.TEACHER,
+            phone_number="07777777777",
+            emergency_phone_number="07888888888",
+        )
+
+        matching_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY304",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        other_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django",
+            class_code="DJ304",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=matching_teacher,
+            course_class=matching_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=other_teacher,
+            course_class=other_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"search": matching_teacher.last_name},
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertIn(matching_class.id, returned_ids)
+        self.assertNotIn(other_class.id, returned_ids)
