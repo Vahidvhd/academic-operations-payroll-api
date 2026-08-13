@@ -645,3 +645,241 @@ class CourseClassAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("term", response.data)
+
+
+    # Filtering
+
+    def test_course_classes_can_be_filtered_by_school(self):
+        other_school = School.objects.create(
+            name="Other School",
+            address="Manchester",
+        )
+
+        class_in_first_school = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY201",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        class_in_other_school = CourseClass.objects.create(
+            school=other_school,
+            term=self.term,
+            title="Django",
+            class_code="DJ201",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"school": self.school.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertIn(class_in_first_school.id, returned_ids)
+        self.assertNotIn(class_in_other_school.id, returned_ids)
+
+
+    def test_course_classes_can_be_filtered_by_term(self):
+        other_term = Term.objects.create(
+            start_date="2027-01-01",
+            end_date="2027-03-31",
+            term_type="regular",
+        )
+
+        class_in_first_term = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY202",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        class_in_other_term = CourseClass.objects.create(
+            school=self.school,
+            term=other_term,
+            title="Django",
+            class_code="DJ202",
+            start_date="2027-01-01",
+            end_date="2027-03-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"term": self.term.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertIn(class_in_first_term.id, returned_ids)
+        self.assertNotIn(class_in_other_term.id, returned_ids)
+
+
+    def test_course_classes_can_be_filtered_by_teacher(self):
+        other_teacher = User.objects.create_user(
+            username="other_teacher",
+            first_name="Other",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07333333333",
+            emergency_phone_number="07444444444",
+        )
+
+        first_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY203",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        second_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django",
+            class_code="DJ203",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=first_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=other_teacher,
+            course_class=second_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"teacher": self.teacher.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertIn(first_class.id, returned_ids)
+        self.assertNotIn(second_class.id, returned_ids)
+
+
+    def test_teacher_filter_cannot_expose_other_teachers_classes(self):
+        other_teacher = User.objects.create_user(
+            username="filter_other_teacher",
+            first_name="Other",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07555555555",
+            emergency_phone_number="07666666666",
+        )
+
+        own_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Own Class",
+            class_code="PY204",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        other_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Other Class",
+            class_code="DJ204",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=own_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=other_teacher,
+            course_class=other_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        response = self.client.get(
+            self.url,
+            {"teacher": other_teacher.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+
+    def test_teacher_filter_does_not_duplicate_course_class(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY205",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-09-01",
+            end_date="2026-10-31",
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-11-01",
+            end_date="2026-12-31",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"teacher": self.teacher.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertEqual(returned_ids.count(course_class.id), 1)
