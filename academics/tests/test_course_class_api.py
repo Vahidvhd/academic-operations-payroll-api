@@ -1,8 +1,11 @@
+from datetime import date
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from academics.models import CourseClass, School, Term, TeacherClassAssignment
+from academics.models import CourseClass, School, TeacherClassAssignment, Term
 
 User = get_user_model()
 
@@ -1102,3 +1105,229 @@ class CourseClassAPITests(APITestCase):
 
         self.assertIn(matching_class.id, returned_ids)
         self.assertNotIn(other_class.id, returned_ids)
+
+
+    # Current teacher summary
+    @patch(
+        "academics.serializers.timezone.localdate",
+        return_value=date(2026, 10, 15),
+    )
+    def test_course_class_detail_includes_current_teacher(
+        self,
+        mocked_localdate,
+    ):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY401",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-10-01",
+            end_date="2026-11-30",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(
+            response.data["current_teacher"],
+            {
+                "id": self.teacher.id,
+                "first_name": self.teacher.first_name,
+                "last_name": self.teacher.last_name,
+            },
+        )
+
+
+    @patch(
+        "academics.serializers.timezone.localdate",
+        return_value=date(2026, 10, 15),
+    )
+    def test_course_class_detail_returns_null_when_no_current_teacher(
+        self,
+        mocked_localdate,
+    ):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY402",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse(
+            "course-class-detail",
+            args=[course_class.id],
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["current_teacher"])
+
+
+    @patch(
+        "academics.serializers.timezone.localdate",
+        return_value=date(2026, 10, 15),
+    )
+    def test_course_class_detail_includes_open_ended_current_teacher(
+        self,
+        mocked_localdate,
+    ):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY403",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-10-01",
+            end_date=None,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse(
+            "course-class-detail",
+            args=[course_class.id],
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(
+            response.data["current_teacher"],
+            {
+                "id": self.teacher.id,
+                "first_name": self.teacher.first_name,
+                "last_name": self.teacher.last_name,
+            },
+        )
+
+
+    def test_course_class_list_does_not_include_current_teacher(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY404",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+
+        course_class_data = next(
+            item
+            for item in response.data
+            if item["id"] == course_class.id
+        )
+
+        self.assertNotIn(
+            "current_teacher",
+            course_class_data,
+        )
+
+
+    @patch(
+        "academics.serializers.timezone.localdate",
+        return_value=date(2026, 10, 15),
+    )
+    def test_course_class_detail_returns_only_current_teacher(
+        self,
+        mocked_localdate,
+    ):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY405",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        old_teacher = User.objects.create_user(
+            username="old_teacher",
+            first_name="Ali",
+            last_name="Old",
+            role=User.Role.TEACHER,
+            phone_number="07111111112",
+            emergency_phone_number="07222222223",
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=old_teacher,
+            course_class=course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-10-01",
+            end_date="2026-11-30",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse(
+            "course-class-detail",
+            args=[course_class.id],
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(
+            response.data["current_teacher"],
+            {
+                "id": self.teacher.id,
+                "first_name": self.teacher.first_name,
+                "last_name": self.teacher.last_name,
+            },
+        )
