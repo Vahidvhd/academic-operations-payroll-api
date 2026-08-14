@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import CourseClass, School, TeacherClassAssignment, Term
@@ -99,6 +100,41 @@ class CourseClassSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class TeacherSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "first_name",
+            "last_name",
+        ]
+
+
+class CourseClassDetailSerializer(CourseClassSerializer):
+    current_teacher = serializers.SerializerMethodField()
+
+    class Meta(CourseClassSerializer.Meta):
+        fields = CourseClassSerializer.Meta.fields + [
+            "current_teacher",
+        ]
+
+    def get_current_teacher(self, obj):
+        today = timezone.localdate()
+
+        assignments = obj.teacher_assignments.filter(
+            start_date__lte=today
+        ).exclude(
+            end_date__lt=today
+        )
+
+        current_assignment = assignments.first()
+
+        if current_assignment is None:
+            return None
+        
+        return TeacherSummarySerializer(current_assignment.teacher).data
+
+    
 class TeacherClassAssignmentSerializer(serializers.ModelSerializer):
     teacher = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.filter(
