@@ -3,13 +3,13 @@
 [![CI](https://github.com/Vahidvhd/instructor-reporting-payroll-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Vahidvhd/instructor-reporting-payroll-api/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/Vahidvhd/instructor-reporting-payroll-api/graph/badge.svg?token=P54EYCF2QU)](https://codecov.io/github/Vahidvhd/instructor-reporting-payroll-api)
 
-A Django REST API project for instructor operations and payroll, currently developed through Phase 1.
+A Django REST API project for instructor operations, academic class management, instructor reporting, and payroll.
 
-This README describes the current implementation of **Phase 1** of the project.
+The project is currently developed through **Phase 2**.
 
 ## Phase 1
 
-Phase 1 focuses on setting up the main project structure, authentication, user roles, academic models, permissions, testing, and development infrastructure.
+Phase 1 established the technical foundation of the project.
 
 ### Implemented
 
@@ -32,6 +32,28 @@ Phase 1 focuses on setting up the main project structure, authentication, user r
 - Codecov integration
 - OpenAPI schema and Swagger UI
 
+## Phase 2
+
+Phase 2 adds the academic management workflow required for schools, terms, classes, and teacher assignments.
+
+### Implemented
+
+- School API
+- Term API
+- CourseClass API
+- TeacherClassAssignment API
+- Education Officer academic management permissions
+- Teacher access to assigned classes
+- CourseClass filtering by school, term, and teacher
+- CourseClass search by school and teacher information
+- Current teacher summary in CourseClass detail responses
+- Validation for class dates and session durations
+- Validation for teacher assignment date ranges
+- Validation preventing overlapping teacher assignments on the same class
+- Support for multiple teachers on the same class in different date ranges
+- Soft deletion for School, Term, and CourseClass
+- Automated tests for Phase 2 business rules and permissions
+
 ## Tech Stack
 
 - Python 3.13
@@ -39,6 +61,7 @@ Phase 1 focuses on setting up the main project structure, authentication, user r
 - Django REST Framework
 - PostgreSQL
 - Simple JWT
+- django-filter
 - Docker / Docker Compose
 - drf-spectacular
 - Coverage.py
@@ -47,7 +70,7 @@ Phase 1 focuses on setting up the main project structure, authentication, user r
 
 ## User Roles
 
-The system currently supports three business roles.
+The system supports three business roles.
 
 ### Teacher
 
@@ -58,13 +81,22 @@ Teachers have additional profile information:
 - phone number
 - emergency phone number
 
+Teachers can access only the classes assigned to them.
+
 ### Education Officer
 
-Responsible for academic and reporting-related operations.
+Responsible for academic management operations, including:
+
+- schools
+- terms
+- course classes
+- teacher-class assignments
 
 ### Finance Officer
 
 Responsible for finance and payroll-related operations.
+
+Phase 2 academic management endpoints are not available to the Finance Officer.
 
 Each normal application user has one business role.
 
@@ -78,10 +110,39 @@ There is no public user registration endpoint.
 
 Users are created by the system or through management commands.
 
+### Obtain Tokens
+
+```text
+POST /api/token/
+```
+
+Example request:
+
+```json
+{
+  "username": "education_sample",
+  "password": "SamplePassword@"
+}
+```
+
+### Refresh Access Token
+
+```text
+POST /api/token/refresh/
+```
+
+### Current User
+
 The authenticated user can check their own account information and role using:
 
 ```text
 GET /api/users/me/
+```
+
+Protected endpoints require an access token:
+
+```text
+Authorization: Bearer <ACCESS_TOKEN>
 ```
 
 ## Academic Models
@@ -96,6 +157,8 @@ Main fields:
 - address
 
 A school is unique by the combination of its name and address.
+
+School records use soft deletion.
 
 ### Term
 
@@ -119,9 +182,13 @@ Current validation includes:
 - term ends on the last day of a month
 - terms cannot overlap
 
+Term records use soft deletion.
+
+A term that already has course classes cannot currently be deleted.
+
 ### CourseClass
 
-Represents a class running inside a term.
+Represents a class running inside a specific school and term.
 
 Main fields:
 
@@ -139,23 +206,217 @@ Supported session durations:
 - 90 minutes
 - 120 minutes
 
-A class must be inside its term date range.
+Current validation includes:
 
-The combination of school, term, and class code must be unique.
+- end date cannot be before start date
+- class dates must be inside the selected term
+- session duration must be 60, 90, or 120 minutes
+- school, term, and class code combination must be unique
+
+CourseClass records use soft deletion.
+
+### TeacherClassAssignment
+
+Represents the relationship between a teacher and a class during a specific date range.
+
+Main fields:
+
+- teacher
+- course class
+- start date
+- optional end date
+
+The separate assignment model preserves teacher changes over the lifetime of a class.
+
+Example:
+
+```text
+Teacher A: 2026-09-01 to 2026-10-31
+Teacher B: 2026-11-01 to 2026-12-31
+```
+
+Current validation includes:
+
+- assigned user must have the Teacher role
+- start date cannot be after end date
+- assignment dates must stay inside the CourseClass date range
+- teacher assignment date ranges on the same class cannot overlap
+- multiple sequential teacher assignments are allowed
+- an open assignment must be closed before another overlapping assignment can become active
+
+If `end_date` is omitted, the assignment is treated as continuing through the relevant class period.
+
+## Academic API
+
+All academic endpoints require authentication.
+
+### Schools
+
+```text
+GET    /api/schools/
+POST   /api/schools/
+GET    /api/schools/<id>/
+PUT    /api/schools/<id>/
+PATCH  /api/schools/<id>/
+DELETE /api/schools/<id>/
+```
+
+School management is restricted to the Education Officer.
+
+Deleting a School performs a soft delete.
+
+### Terms
+
+```text
+GET    /api/terms/
+POST   /api/terms/
+GET    /api/terms/<id>/
+DELETE /api/terms/<id>/
+```
+
+Term management is restricted to the Education Officer.
+
+`PUT` and `PATCH` are not currently exposed for Term.
+
+Deleting an eligible Term performs a soft delete.
+
+A Term that already has CourseClass records cannot currently be deleted.
+
+### Course Classes
+
+```text
+GET    /api/course-classes/
+POST   /api/course-classes/
+GET    /api/course-classes/<id>/
+PUT    /api/course-classes/<id>/
+PATCH  /api/course-classes/<id>/
+DELETE /api/course-classes/<id>/
+```
+
+Education Officers can manage course classes.
+
+Teachers have read access only to classes assigned to them.
+
+Deleting a CourseClass performs a soft delete.
+
+### Teacher-Class Assignments
+
+```text
+GET    /api/teacher-class-assignments/
+POST   /api/teacher-class-assignments/
+GET    /api/teacher-class-assignments/<id>/
+PUT    /api/teacher-class-assignments/<id>/
+PATCH  /api/teacher-class-assignments/<id>/
+DELETE /api/teacher-class-assignments/<id>/
+```
+
+Teacher-class assignment management is restricted to the Education Officer.
+
+## CourseClass Filtering
+
+CourseClass records can be filtered by school, term, or teacher.
+
+Examples:
+
+```text
+GET /api/course-classes/?school=1
+GET /api/course-classes/?term=1
+GET /api/course-classes/?teacher=3
+```
+
+Filters can also be combined:
+
+```text
+GET /api/course-classes/?school=1&term=1&teacher=3
+```
+
+## CourseClass Search
+
+CourseClass records support text search using the `search` query parameter.
+
+Examples:
+
+```text
+GET /api/course-classes/?search=Maktab
+GET /api/course-classes/?search=Vahid
+```
+
+Search currently covers:
+
+- school name
+- term type
+- assigned teacher first name
+- assigned teacher last name
+
+## Current Teacher Summary
+
+The detail response for a CourseClass includes a summary of the currently assigned teacher when an active assignment exists.
+
+Example:
+
+```text
+GET /api/course-classes/1/
+```
+
+Example response fragment:
+
+```json
+{
+  "id": 1,
+  "title": "Python Backend",
+  "class_code": "PY101",
+  "current_teacher": {
+    "id": 3,
+    "first_name": "Vahid",
+    "last_name": "Vahedi"
+  }
+}
+```
+
+If there is no active teacher assignment for the current date, `current_teacher` is returned as `null`.
+
+## Teacher Class Visibility
+
+A Teacher can only see CourseClass records connected to their own teacher assignments.
+
+The current implementation includes assigned classes regardless of whether the assignment is current, past, or future.
+
+Teachers cannot use these endpoints to manage schools, terms, teacher assignments, or other teachers' classes.
 
 ## Date Format
 
-The project currently uses **Gregorian dates**.
+The current implementation uses **Gregorian dates** in API requests and responses.
+
+Example:
+
+```text
+2026-09-01
+```
+
+## Soft Deletion
+
+Soft deletion is currently implemented for:
+
+- School
+- Term
+- CourseClass
+
+A soft-deleted record remains in the database but is excluded from the normal API queryset.
+
+TeacherClassAssignment currently uses the default delete behavior.
+
+Deletion and locking rules may be extended in later phases when session reports introduce historical operational data.
 
 ## Role-Based Permissions
 
-Reusable Django REST Framework permission classes are available for:
+Reusable Django REST Framework permission classes include:
 
 - `IsTeacher`
 - `IsEducationOfficer`
 - `IsFinanceOfficer`
+- `IsEducationOfficerOrTeacher`
 
-These permissions check both authentication and the user's assigned role.
+These permissions check authentication and the user's assigned business role.
 
 Role boundaries are covered by automated tests.
 
@@ -286,7 +547,21 @@ python -m coverage run manage.py test
 python -m coverage report
 ```
 
-Coverage reports are also uploaded to Codecov through GitHub Actions.
+Coverage reports are uploaded to Codecov through GitHub Actions.
+
+Phase 2 tests cover the main academic workflow, including:
+
+- role-based access boundaries
+- School API behavior
+- Term validation
+- CourseClass validation
+- valid session duration choices
+- teacher assignment date validation
+- multiple sequential teachers on one class
+- overlapping teacher assignment rejection
+- teacher visibility restrictions
+- CourseClass filtering and search
+- current teacher detail behavior
 
 ## Continuous Integration
 
@@ -301,16 +576,58 @@ The CI workflow:
 - generates the coverage report
 - uploads coverage results to Codecov
 
-## Phase 1 Status
+## Current Project Status
 
-Phase 1 establishes the foundation of the application:
+### Phase 1
+
+Completed foundation:
 
 - authentication and users
 - role-based access control
-- core academic data models
+- academic data models
 - PostgreSQL integration
 - automated testing
 - CI and coverage reporting
 - API documentation
 
-Further business workflows such as sessions, instructor reports, approvals, and payroll are intentionally outside the scope of this phase.
+### Phase 2
+
+Implemented academic management workflow:
+
+- School management
+- Term management
+- CourseClass management
+- teacher-class assignment history
+- multiple sequential teachers per class
+- teacher-specific class visibility
+- filtering and search
+- current teacher summary
+- Phase 2 validations and tests
+
+## Current Limitations
+
+The following features are intentionally not part of the current implementation:
+
+- session scheduling and session reports
+- report approval and rejection workflow
+- late-report handling
+- report status history
+- payroll rates and monthly salary calculation
+
+These workflows belong to later project phases.
+
+Term updates through `PUT` and `PATCH` are not currently exposed.
+
+Deletion and historical locking rules will be revisited when report data is introduced, so academic records connected to operational history can be protected appropriately.
+
+## Next Phase
+
+Phase 3 will introduce the session reporting workflow, including:
+
+- scheduled course sessions
+- teacher session reports
+- report submission rules
+- late report detection
+- Education Officer approval and rejection
+- report resubmission
+- report-related permissions and tests
