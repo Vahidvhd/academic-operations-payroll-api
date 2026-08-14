@@ -7,6 +7,7 @@ from users.permissions import IsEducationOfficer, IsEducationOfficerOrTeacher
 from .filters import CourseClassFilter
 from .models import CourseClass, School, TeacherClassAssignment, Term
 from .serializers import (
+    CourseClassDetailSerializer,
     CourseClassSerializer,
     SchoolSerializer,
     TeacherClassAssignmentSerializer,
@@ -63,6 +64,12 @@ class CourseClassViewSet(viewsets.ModelViewSet):
             ).distinct()
 
         return queryset
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return CourseClassDetailSerializer
+
+        return CourseClassSerializer
 
     def perform_destroy(self, instance):
         instance.is_deleted = True
