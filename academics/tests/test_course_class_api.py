@@ -1,8 +1,11 @@
+from datetime import date
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from academics.models import CourseClass, School, Term, TeacherClassAssignment
+from academics.models import CourseClass, School, TeacherClassAssignment, Term
 
 User = get_user_model()
 
@@ -1102,3 +1105,47 @@ class CourseClassAPITests(APITestCase):
 
         self.assertIn(matching_class.id, returned_ids)
         self.assertNotIn(other_class.id, returned_ids)
+
+
+    # Current teacher summary
+    @patch(
+        "academics.serializers.timezone.localdate",
+        return_value=date(2026, 10, 15),
+    )
+    def test_course_class_detail_includes_current_teacher(
+        self,
+        mocked_localdate,
+    ):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY401",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-10-01",
+            end_date="2026-11-30",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(
+            response.data["current_teacher"],
+            {
+                "id": self.teacher.id,
+                "first_name": self.teacher.first_name,
+                "last_name": self.teacher.last_name,
+            },
+        )
