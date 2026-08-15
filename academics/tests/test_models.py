@@ -624,3 +624,148 @@ class CourseSessionModelTests(TestCase):
         )
 
         second_session.full_clean()
+
+
+    def test_sessions_for_different_classes_can_overlap(self):
+        second_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django Basics",
+            class_code="DJ-101",
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            session_duration=CourseClass.SessionDuration.NINETY,
+        )
+
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        second_session = CourseSession(
+            course_class=second_course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        second_session.full_clean()
+
+
+    def test_session_can_be_updated_without_overlapping_with_itself(self):
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        session.session_datetime = timezone.make_aware(
+            datetime(2026, 3, 10, 10, 30)
+        )
+
+        session.full_clean()
+
+
+    def test_updating_session_cannot_create_overlap(self):
+        first_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 13, 0)
+            ),
+            session_number=2,
+        )
+
+        first_session.session_datetime = timezone.make_aware(
+            datetime(2026, 3, 10, 12, 0)
+        )
+
+        self.assertRaises(
+            ValidationError,
+            first_session.full_clean,
+        )
+
+
+    def test_soft_deleted_session_does_not_cause_overlap(self):
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+            is_deleted=True,
+        )
+
+        new_session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=2,
+        )
+
+        new_session.full_clean()
+
+
+    def test_soft_deleted_session_number_can_be_reused(self):
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+            is_deleted=True,
+        )
+
+        new_session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 12, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        new_session.full_clean()
+
+
+    def test_same_session_number_is_allowed_for_different_classes(self):
+        second_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django Basics",
+            class_code="DJ-101",
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            session_duration=CourseClass.SessionDuration.NINETY,
+        )
+
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        second_session = CourseSession(
+            course_class=second_course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        second_session.full_clean()
