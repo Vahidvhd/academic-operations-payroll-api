@@ -114,3 +114,8 @@ class CourseSessionViewSet(viewsets.ModelViewSet):
             ).distinct()
 
         return queryset
+
+    def perform_destroy(self, instance):
+        instance.is_deleted = True
+        instance.deleted_at = timezone.now()
+        instance.save()
