@@ -466,3 +466,103 @@ class CourseSessionAPITests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["id"], session.id)
+
+
+    def test_education_officer_can_list_active_course_sessions(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        first_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        second_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-11T10:00:00Z",
+            session_number=2,
+        )
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 2)
+
+        session_ids = [session["id"] for session in response.data]
+
+        self.assertCountEqual(
+            session_ids,
+            [first_session.id, second_session.id],
+        )
+
+
+    def test_teacher_cannot_retrieve_session_from_another_teachers_assignment_period(self):
+        first_teacher = User.objects.create_user(
+            username="teacher-detail-1",
+            first_name="First",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher-detail-2",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        TeacherClassAssignment.objects.create(
+            course_class=self.course_class,
+            teacher=first_teacher,
+            start_date="2026-09-01",
+            end_date="2026-09-15",
+        )
+
+        TeacherClassAssignment.objects.create(
+            course_class=self.course_class,
+            teacher=second_teacher,
+            start_date="2026-09-16",
+            end_date="2026-09-30",
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-20T10:00:00Z",
+            session_number=1,
+        )
+
+        self.client.force_authenticate(user=first_teacher)
+
+        url = reverse("course-session-detail", args=[session.id])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+
+    def test_can_reuse_session_number_after_soft_delete(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+            is_deleted=True,
+        )
+
+        data = {
+            "course_class": self.course_class.id,
+            "session_datetime": "2026-09-11T10:00:00Z",
+            "session_number": 1,
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            CourseSession.objects.filter(
+                course_class=self.course_class,
+                session_number=1,
+                is_deleted=False,
+            ).count(),
+            1,
+        )
