@@ -2,7 +2,13 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from academics.models import CourseClass, CourseSession, School, Term
+from academics.models import (
+    CourseClass,
+    CourseSession,
+    School,
+    TeacherClassAssignment,
+    Term,
+)
 
 User = get_user_model()
 
@@ -251,3 +257,212 @@ class CourseSessionAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(CourseSession.objects.count(), 0)
+
+
+    def test_teacher_cannot_create_course_session(self):
+        teacher = User.objects.create_user(
+            username="teacher",
+            first_name="Test",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        self.client.force_authenticate(user=teacher)
+
+        data = {
+            "course_class": self.course_class.id,
+            "session_datetime": "2026-09-10T10:00:00Z",
+            "session_number": 1,
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(CourseSession.objects.count(), 0)
+
+
+    def test_anonymous_user_cannot_access_course_sessions(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
+
+
+    def test_finance_officer_cannot_access_course_sessions(self):
+        finance_officer = User.objects.create_user(
+            username="finance",
+            first_name="Test",
+            last_name="Finance",
+            role=User.Role.FINANCE_OFFICER,
+        )
+
+        self.client.force_authenticate(user=finance_officer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_teacher_only_sees_sessions_in_own_assignment_period(self):
+        teacher = User.objects.create_user(
+            username="teacher",
+            first_name="Test",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        TeacherClassAssignment.objects.create(
+            course_class=self.course_class,
+            teacher=teacher,
+            start_date="2026-09-01",
+            end_date="2026-09-15",
+        )
+
+        visible_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-20T10:00:00Z",
+            session_number=2,
+        )
+
+        self.client.force_authenticate(user=teacher)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], visible_session.id)
+
+
+    def test_teacher_cannot_see_sessions_from_another_teachers_assignment_period(self):
+        first_teacher = User.objects.create_user(
+            username="teacher1",
+            first_name="First",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        TeacherClassAssignment.objects.create(
+            course_class=self.course_class,
+            teacher=first_teacher,
+            start_date="2026-09-01",
+            end_date="2026-09-15",
+        )
+
+        TeacherClassAssignment.objects.create(
+            course_class=self.course_class,
+            teacher=second_teacher,
+            start_date="2026-09-16",
+            end_date="2026-09-30",
+        )
+
+        first_teacher_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-20T10:00:00Z",
+            session_number=2,
+        )
+
+        self.client.force_authenticate(user=first_teacher)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], first_teacher_session.id)
+
+
+    def test_teacher_cannot_update_course_session(self):
+        teacher = User.objects.create_user(
+            username="teacher-update",
+            first_name="Test",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        self.client.force_authenticate(user=teacher)
+
+        url = reverse("course-session-detail", args=[session.id])
+
+        data = {
+            "session_number": 2,
+        }
+
+        response = self.client.patch(url, data, format="json")
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_teacher_cannot_delete_course_session(self):
+        teacher = User.objects.create_user(
+            username="teacher-delete",
+            first_name="Test",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        self.client.force_authenticate(user=teacher)
+
+        url = reverse("course-session-detail", args=[session.id])
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_teacher_sees_sessions_with_open_ended_assignment(self):
+        teacher = User.objects.create_user(
+            username="teacher-open",
+            first_name="Test",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        TeacherClassAssignment.objects.create(
+            course_class=self.course_class,
+            teacher=teacher,
+            start_date="2026-09-01",
+            end_date=None,
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-20T10:00:00Z",
+            session_number=1,
+        )
+
+        self.client.force_authenticate(user=teacher)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], session.id)
