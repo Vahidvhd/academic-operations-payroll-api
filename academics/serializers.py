@@ -3,7 +3,13 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import CourseClass, School, TeacherClassAssignment, Term
+from .models import (
+    CourseClass,
+    CourseSession,
+    School,
+    TeacherClassAssignment,
+    Term,
+)
 
 User = get_user_model()
 
@@ -182,4 +188,53 @@ class TeacherClassAssignmentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(exc.message_dict)
 
         return attrs
-                        
+
+
+class CourseSessionSerializer(serializers.ModelSerializer):
+    course_class = serializers.PrimaryKeyRelatedField(
+        queryset=CourseClass.objects.filter(is_deleted=False)
+    )
+
+    class Meta:
+        model = CourseSession
+        fields = [
+            "id",
+            "course_class",
+            "session_datetime",
+            "session_number",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+    def validate(self, attrs):
+        if self.instance:
+            session = CourseSession(
+                pk=self.instance.pk,
+                course_class=attrs.get(
+                    "course_class",
+                    self.instance.course_class,
+                ),
+                session_datetime=attrs.get(
+                    "session_datetime",
+                    self.instance.session_datetime,
+                ),
+                session_number=attrs.get(
+                    "session_number",
+                    self.instance.session_number,
+                ),
+            )
+        else:
+            session = CourseSession(
+                course_class=attrs.get("course_class"),
+                session_datetime=attrs.get("session_datetime"),
+                session_number=attrs.get("session_number"),
+            )
+
+        try:
+            session.clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
+
+        return attrs
