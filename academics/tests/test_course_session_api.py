@@ -87,3 +87,24 @@ class CourseSessionAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(CourseSession.objects.count(), 0)
+
+
+    def test_cannot_create_duplicate_session_number_for_same_course_class(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        data = {
+            "course_class": self.course_class.id,
+            "session_datetime": "2026-09-11T10:00:00Z",
+            "session_number": 1,
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(CourseSession.objects.count(), 1)
