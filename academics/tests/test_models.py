@@ -551,6 +551,30 @@ class CourseSessionModelTests(TestCase):
         self.assertRaises(ValidationError, session.full_clean)
 
 
+    def test_session_can_be_on_class_start_date(self):
+        session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 1, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        session.full_clean()
+
+
+    def test_session_can_be_on_class_end_date(self):
+        session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 31, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        session.full_clean()
+
+
     def test_session_number_must_be_at_least_one(self):
         session = CourseSession(
             course_class=self.course_class,
