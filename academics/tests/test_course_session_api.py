@@ -108,3 +108,24 @@ class CourseSessionAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(CourseSession.objects.count(), 1)
+
+
+    def test_cannot_create_overlapping_session_for_same_course_class(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        data = {
+            "course_class": self.course_class.id,
+            "session_datetime": "2026-09-10T11:00:00Z",
+            "session_number": 2,
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(CourseSession.objects.count(), 1)
