@@ -1,3 +1,4 @@
+from django.db.models import F, Q
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
@@ -5,10 +6,17 @@ from rest_framework.exceptions import ValidationError
 from users.permissions import IsEducationOfficer, IsEducationOfficerOrTeacher
 
 from .filters import CourseClassFilter
-from .models import CourseClass, School, TeacherClassAssignment, Term
+from .models import (
+    CourseClass,
+    CourseSession,
+    School,
+    TeacherClassAssignment,
+    Term,
+)
 from .serializers import (
     CourseClassDetailSerializer,
     CourseClassSerializer,
+    CourseSessionSerializer,
     SchoolSerializer,
     TeacherClassAssignmentSerializer,
     TermSerializer,
@@ -81,3 +89,28 @@ class TeacherClassAssignmentViewSet(viewsets.ModelViewSet):
     queryset = TeacherClassAssignment.objects.all()
     serializer_class = TeacherClassAssignmentSerializer
     permission_classes = [IsEducationOfficer]
+
+
+class CourseSessionViewSet(viewsets.ModelViewSet):
+    queryset = CourseSession.objects.filter(is_deleted=False)
+    serializer_class = CourseSessionSerializer
+    permission_classes = [IsEducationOfficerOrTeacher]
+
+    def get_queryset(self):
+        queryset = CourseSession.objects.filter(is_deleted=False)
+
+        if self.request.user.role == "teacher":
+            return queryset.filter(
+                Q(course_class__teacher_assignments__end_date__isnull=True)
+                | Q(
+                    session_datetime__date__lte=F(
+                        "course_class__teacher_assignments__end_date"
+                    )
+                ),
+                course_class__teacher_assignments__teacher=self.request.user,
+                session_datetime__date__gte=F(
+                    "course_class__teacher_assignments__start_date"
+                ),
+            ).distinct()
+
+        return queryset
