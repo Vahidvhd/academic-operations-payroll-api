@@ -1,10 +1,17 @@
-from datetime import date
+from datetime import date, datetime
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.utils import timezone
 
-from academics.models import CourseClass, School, TeacherClassAssignment, Term
+from academics.models import (
+    CourseClass,
+    CourseSession,
+    School,
+    TeacherClassAssignment,
+    Term,
+)
 
 User = get_user_model()
 
@@ -486,3 +493,134 @@ class TeacherClassAssignmentModelTests(TestCase):
         )
 
         assignment.full_clean()
+
+
+class CourseSessionModelTests(TestCase):
+    def setUp(self):
+        self.school = School.objects.create(
+            name="Test School",
+            address="Test Address",
+        )
+
+        self.term = Term.objects.create(
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            term_type=Term.TermType.REGULAR,
+        )
+
+        self.course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python Basics",
+            class_code="PY-101",
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            session_duration=CourseClass.SessionDuration.NINETY,
+        )
+
+
+    def test_string_representation(self):
+        session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(datetime(2026, 3, 10, 10, 0)),
+            session_number=1,
+        )
+
+        self.assertEqual(str(session),"Python Basics (PY-101) - Session 1")
+
+
+    def test_session_cannot_be_before_class_start_date(self):
+        session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(datetime(2026, 2, 28, 10, 0)),
+            session_number=1,
+        )
+
+        self.assertRaises(ValidationError, session.full_clean)
+
+
+    def test_session_cannot_be_after_class_end_date(self):
+        session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 4, 1, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        self.assertRaises(ValidationError, session.full_clean)
+
+
+    def test_session_number_must_be_at_least_one(self):
+        session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=0,
+        )
+
+        self.assertRaises(ValidationError, session.full_clean)
+
+
+    def test_session_number_must_be_unique_per_course_class(self):
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        duplicate_session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 12, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        self.assertRaises(ValidationError, duplicate_session.full_clean)
+
+
+    def test_sessions_for_same_class_cannot_overlap(self):
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        overlapping_session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 11, 0)
+            ),
+            session_number=2,
+        )
+
+        self.assertRaises(
+            ValidationError,
+            overlapping_session.full_clean,
+        )
+
+
+    def test_sessions_can_be_back_to_back(self):
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        second_session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 11, 30)
+            ),
+            session_number=2,
+        )
+
+        second_session.full_clean()
