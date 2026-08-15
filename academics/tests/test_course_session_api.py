@@ -164,3 +164,90 @@ class CourseSessionAPITests(APITestCase):
         session.refresh_from_db()
         self.assertTrue(session.is_deleted)
         self.assertIsNotNone(session.deleted_at)
+
+
+    def test_education_officer_can_update_course_session(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        url = reverse("course-session-detail", args=[session.id])
+
+        data = {
+            "session_number": 2,
+        }
+
+        response = self.client.patch(url, data, format="json")
+
+        self.assertEqual(response.status_code, 200)
+
+        session.refresh_from_db()
+        self.assertEqual(session.session_number, 2)
+
+
+    def test_cannot_update_session_to_overlap_another_session(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        first_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        second_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T12:00:00Z",
+            session_number=2,
+        )
+
+        url = reverse("course-session-detail", args=[second_session.id])
+
+        data = {
+            "session_datetime": "2026-09-10T11:00:00Z",
+        }
+
+        response = self.client.patch(url, data, format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+
+    def test_soft_deleted_course_session_is_hidden(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+            is_deleted=True,
+        )
+
+        list_response = self.client.get(self.url)
+
+        detail_url = reverse("course-session-detail", args=[session.id])
+        detail_response = self.client.get(detail_url)
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(len(list_response.data), 0)
+        self.assertEqual(detail_response.status_code, 404)
+
+
+    def test_cannot_create_session_for_soft_deleted_course_class(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        self.course_class.is_deleted = True
+        self.course_class.save()
+
+        data = {
+            "course_class": self.course_class.id,
+            "session_datetime": "2026-09-10T10:00:00Z",
+            "session_number": 1,
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(CourseSession.objects.count(), 0)
