@@ -1,7 +1,9 @@
 import calendar
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 
 
@@ -169,3 +171,63 @@ class TeacherClassAssignment(TimeStampedModel):
                 overlapping_assignments = overlapping_assignments.exclude(pk=self.pk)
             if overlapping_assignments.exists():
                 raise ValidationError({"start_date": "Assignment dates cannot overlap with another assignment for this class."})
+
+
+class CourseSession(TimeStampedModel, SoftDeleteModel):
+    course_class = models.ForeignKey(
+        CourseClass,
+        on_delete=models.PROTECT,
+        related_name="sessions",
+    )
+    session_datetime = models.DateTimeField()
+    session_number = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("course_class", "session_number"),
+                condition=models.Q(is_deleted=False),
+                name="unique_active_session_number_per_course_class",
+            )
+        ]
+
+    def clean(self):
+        if not self.course_class_id or not self.session_datetime:
+            return
+
+        session_date = self.session_datetime.date()
+        if session_date < self.course_class.start_date:
+            raise ValidationError(
+                {"session_datetime": "Session cannot be before the class starts."}
+            )
+
+        if session_date > self.course_class.end_date:
+            raise ValidationError(
+                {"session_datetime": "Session cannot be after the class ends."}
+            )
+
+        session_end = self.session_datetime + timedelta(
+            minutes=self.course_class.session_duration
+        )
+
+        existing_sessions = CourseSession.objects.filter(
+            course_class=self.course_class,
+            is_deleted=False,
+        )
+
+        if self.pk:
+            existing_sessions = existing_sessions.exclude(pk=self.pk)
+
+        for existing_session in existing_sessions:
+            existing_end = existing_session.session_datetime + timedelta(
+                minutes=self.course_class.session_duration
+            )
+
+            if (self.session_datetime < existing_end and session_end > existing_session.session_datetime):
+                raise ValidationError(
+                    {"session_datetime": "Session cannot overlap with another session."}
+                )
+
+    def __str__(self):
+        return f"{self.course_class} - Session {self.session_number}"
+            
