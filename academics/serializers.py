@@ -232,6 +232,24 @@ class CourseSessionSerializer(serializers.ModelSerializer):
                 session_number=attrs.get("session_number"),
             )
 
+        existing_sessions = CourseSession.objects.filter(
+            course_class=session.course_class,
+            session_number=session.session_number,
+            is_deleted=False,
+        )
+
+        if self.instance:
+            existing_sessions = existing_sessions.exclude(pk=self.instance.pk)
+
+        if existing_sessions.exists():
+            raise serializers.ValidationError(
+                {
+                    "session_number": (
+                        "Session number must be unique for this class."
+                    )
+                }
+            )
+
         try:
             session.clean()
         except DjangoValidationError as exc:
