@@ -129,3 +129,38 @@ class CourseSessionAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(CourseSession.objects.count(), 1)
+
+
+    def test_cannot_create_session_with_zero_session_number(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        data = {
+            "course_class": self.course_class.id,
+            "session_datetime": "2026-09-10T10:00:00Z",
+            "session_number": 0,
+        }
+
+        response = self.client.post(self.url, data, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(CourseSession.objects.count(), 0)
+
+
+    def test_education_officer_can_soft_delete_course_session(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        url = reverse("course-session-detail", args=[session.id])
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 204)
+
+        session.refresh_from_db()
+        self.assertTrue(session.is_deleted)
+        self.assertIsNotNone(session.deleted_at)
