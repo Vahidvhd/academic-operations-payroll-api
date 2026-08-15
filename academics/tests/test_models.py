@@ -793,3 +793,9 @@ class CourseSessionModelTests(TestCase):
         )
 
         second_session.full_clean()
+
+
+    def test_clean_returns_when_required_fields_are_missing(self):
+        session = CourseSession()
+
+        self.assertIsNone(session.clean())
