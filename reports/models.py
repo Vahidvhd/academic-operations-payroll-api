@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from core.models import TimeStampedModel
@@ -25,3 +28,23 @@ class SessionReport(TimeStampedModel):
         related_name="reviewed_reports",
     )
     review_note = models.TextField(blank=True)
+
+    def clean(self):
+        super().clean()
+
+        if self.session_id and self.submitted_at:
+            session_end = self.session.session_datetime + timedelta(
+                minutes=self.session.course_class.session_duration
+            )
+
+            if self.submitted_at < session_end:
+                raise ValidationError({"session": ("Report can only be submitted after the session ends.")})
+
+        if self.status == self.Status.REJECTED and not self.review_note.strip():
+            raise ValidationError({"review_note": "A rejection reason is required."})
+
+        if (self.status in [self.Status.APPROVED, self.Status.REJECTED] and not self.reviewed_by_id):
+            raise ValidationError({"reviewed_by": "A reviewer is required for reviewed reports."})
+
+        if (self.reviewed_by_id and self.reviewed_by.role != "education_officer"):
+            raise ValidationError({"reviewed_by": "Reviewer must be an education officer."})
