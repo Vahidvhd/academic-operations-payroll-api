@@ -50,15 +50,16 @@ class SessionReport(TimeStampedModel):
         if (self.reviewed_by_id and self.reviewed_by.role != "education_officer"):
             raise ValidationError({"reviewed_by": "Reviewer must be an education officer."})
 
-    def calculate_late_hours(self):
-        if not self.session_id or not self.submitted_at:
+    def calculate_late_hours(self, approved_at):
+        session_end = self.session.session_datetime + timedelta(
+            minutes=self.session.course_class.session_duration
+        )
+
+        deadline = session_end + timedelta(hours=48)
+
+        if approved_at <= deadline:
             return 0
 
-        deadline = self.session.session_datetime + timedelta(hours=48)
-
-        if self.submitted_at <= deadline:
-            return 0
-
-        late_seconds = (self.submitted_at - deadline).total_seconds()
+        late_seconds = (approved_at - deadline).total_seconds()
 
         return math.ceil(late_seconds / 3600)

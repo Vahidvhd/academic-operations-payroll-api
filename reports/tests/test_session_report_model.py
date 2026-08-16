@@ -179,31 +179,49 @@ class SessionReportModelTests(TestCase):
         self.assertRaises(ValidationError, report.full_clean)
 
 
-    def test_report_at_exactly_48_hours_is_not_late(self):
+    def test_report_approved_at_exactly_48_hours_is_not_late(self):
         report = SessionReport(
             session=self.session,
             lesson_summary="Python basics",
             present_count=10,
             absent_count=2,
-            submitted_at=self.session.session_datetime + timedelta(hours=48),
-        )
-
-        self.assertEqual(report.calculate_late_hours(), 0)
-
-
-    def test_report_one_second_after_48_hours_has_one_late_hour(self):
-        report = SessionReport(
-            session=self.session,
-            lesson_summary="Python basics",
-            present_count=10,
-            absent_count=2,
-            submitted_at=(
-                self.session.session_datetime
-                + timedelta(hours=48, seconds=1)
+            submitted_at=timezone.make_aware(
+                datetime(2026, 8, 10, 12, 0)
             ),
         )
 
-        self.assertEqual(report.calculate_late_hours(), 1)
+        session_end = (
+            self.session.session_datetime
+            + timedelta(minutes=self.course_class.session_duration)
+        )
+
+        approved_at = session_end + timedelta(hours=48)
+
+        self.assertEqual(
+            report.calculate_late_hours(approved_at),
+            0,
+        )
+
+
+    def test_report_approved_one_second_after_48_hours_has_one_late_hour(self):
+        report = SessionReport(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.make_aware(
+                datetime(2026, 8, 10, 12, 0)
+            ),
+        )
+
+        session_end = (
+            self.session.session_datetime
+            + timedelta(minutes=self.course_class.session_duration)
+        )
+
+        approved_at = session_end + timedelta(hours=48, seconds=1)
+
+        self.assertEqual(report.calculate_late_hours(approved_at), 1)
 
 
     def test_report_one_full_hour_late_has_one_late_hour(self):
@@ -212,13 +230,19 @@ class SessionReportModelTests(TestCase):
             lesson_summary="Python basics",
             present_count=10,
             absent_count=2,
-            submitted_at=(
-                self.session.session_datetime
-                + timedelta(hours=49)
+            submitted_at=timezone.make_aware(
+                datetime(2026, 8, 10, 12, 0)
             ),
         )
 
-        self.assertEqual(report.calculate_late_hours(), 1)
+        session_end = (
+            self.session.session_datetime
+            + timedelta(minutes=self.course_class.session_duration)
+        )
+
+        approved_at = session_end + timedelta(hours=49)
+
+        self.assertEqual(report.calculate_late_hours(approved_at), 1)
 
 
     def test_report_more_than_one_full_hour_late_has_two_late_hours(self):
@@ -227,10 +251,16 @@ class SessionReportModelTests(TestCase):
             lesson_summary="Python basics",
             present_count=10,
             absent_count=2,
-            submitted_at=(
-                self.session.session_datetime
-                + timedelta(hours=49, seconds=1)
+            submitted_at=timezone.make_aware(
+                datetime(2026, 8, 10, 12, 0)
             ),
         )
 
-        self.assertEqual(report.calculate_late_hours(), 2)
+        session_end = (
+            self.session.session_datetime
+            + timedelta(minutes=self.course_class.session_duration)
+        )
+
+        approved_at = session_end + timedelta(hours=49, seconds=1)
+
+        self.assertEqual(report.calculate_late_hours(approved_at), 2)
