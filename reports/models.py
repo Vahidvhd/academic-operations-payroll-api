@@ -1,3 +1,4 @@
+import math
 from datetime import timedelta
 
 from django.conf import settings
@@ -48,3 +49,16 @@ class SessionReport(TimeStampedModel):
 
         if (self.reviewed_by_id and self.reviewed_by.role != "education_officer"):
             raise ValidationError({"reviewed_by": "Reviewer must be an education officer."})
+
+    def calculate_late_hours(self):
+        if not self.session_id or not self.submitted_at:
+            return 0
+
+        deadline = self.session.session_datetime + timedelta(hours=48)
+
+        if self.submitted_at <= deadline:
+            return 0
+
+        late_seconds = (self.submitted_at - deadline).total_seconds()
+
+        return math.ceil(late_seconds / 3600)
