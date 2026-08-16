@@ -48,6 +48,12 @@ class SessionReportModelTests(TestCase):
             role=User.Role.EDUCATION_OFFICER,
         )
 
+        self.teacher = User.objects.create_user(
+            username="teacher1",
+            password="testpass123",
+            role=User.Role.TEACHER,
+        )
+
 
     def test_report_cannot_be_submitted_before_session_ends(self):
         report = SessionReport(
@@ -103,6 +109,71 @@ class SessionReportModelTests(TestCase):
                 datetime(2026, 8, 10, 12, 0)
             ),
             status=SessionReport.Status.APPROVED,
+        )
+
+        self.assertRaises(ValidationError, report.full_clean)
+
+
+    def test_reviewer_must_be_education_officer(self):
+        report = SessionReport(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.make_aware(
+                datetime(2026, 8, 10, 12, 0)
+            ),
+            status=SessionReport.Status.APPROVED,
+            reviewed_by=self.teacher,
+        )
+
+        self.assertRaises(ValidationError, report.full_clean)
+
+
+    def test_approved_report_with_education_officer_is_valid(self):
+        report = SessionReport(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.make_aware(
+                datetime(2026, 8, 10, 12, 0)
+            ),
+            status=SessionReport.Status.APPROVED,
+            reviewed_by=self.education_officer,
+        )
+
+        report.full_clean()
+
+
+    def test_rejected_report_with_review_note_is_valid(self):
+        report = SessionReport(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.make_aware(
+                datetime(2026, 8, 10, 12, 0)
+            ),
+            status=SessionReport.Status.REJECTED,
+            reviewed_by=self.education_officer,
+            review_note="Attendance needs correction.",
+        )
+
+        report.full_clean()
+
+
+    def test_rejected_report_requires_reviewer(self):
+        report = SessionReport(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.make_aware(
+                datetime(2026, 8, 10, 12, 0)
+            ),
+            status=SessionReport.Status.REJECTED,
+            review_note="Attendance needs correction.",
         )
 
         self.assertRaises(ValidationError, report.full_clean)
