@@ -98,3 +98,21 @@ class SessionReportSerializerTests(TestCase):
 
         self.assertFalse(serializer.is_valid())
         self.assertIn("session", serializer.errors)
+
+
+    def test_submitted_at_is_set_by_backend(self):
+        serializer = SessionReportSerializer(
+            data={
+                "session": self.session.id,
+                "lesson_summary": "Introduction to Python",
+                "present_count": 10,
+                "absent_count": 2,
+            },
+            context={"request": self.request},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        report = serializer.save()
+
+        self.assertIsNotNone(report.submitted_at)
