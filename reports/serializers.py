@@ -1,3 +1,5 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils import timezone
 from rest_framework import serializers
 
 from academics.models import TeacherClassAssignment
@@ -53,3 +55,17 @@ class SessionReportSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"session": ("You can only report sessions from your own assignment.")})
 
         return attrs
+
+    def create(self, validated_data):
+        report = SessionReport(
+            **validated_data,
+            submitted_at=timezone.now(),
+        )
+
+        try:
+            report.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict)
+
+        report.save()
+        return report
