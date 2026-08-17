@@ -75,3 +75,26 @@ class SessionReportSerializerTests(TestCase):
         )
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
+
+
+    def test_teacher_cannot_report_session_from_another_assignment(self):
+        other_teacher = User.objects.create_user(
+            username="teacher2",
+            password="testpass123",
+            role=User.Role.TEACHER,
+        )
+
+        self.request.user = other_teacher
+
+        serializer = SessionReportSerializer(
+            data={
+                "session": self.session.id,
+                "lesson_summary": "Introduction to Python",
+                "present_count": 10,
+                "absent_count": 2,
+            },
+            context={"request": self.request},
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("session", serializer.errors)
