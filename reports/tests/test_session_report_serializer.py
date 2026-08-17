@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -100,7 +101,13 @@ class SessionReportSerializerTests(TestCase):
         self.assertIn("session", serializer.errors)
 
 
-    def test_submitted_at_is_set_by_backend(self):
+    @patch("reports.serializers.timezone.now")
+    def test_submitted_at_is_set_by_backend(self, mocked_now):
+        fixed_time = timezone.make_aware(
+            datetime(2026, 8, 10, 12, 0)
+        )
+        mocked_now.return_value = fixed_time
+
         serializer = SessionReportSerializer(
             data={
                 "session": self.session.id,
@@ -115,8 +122,7 @@ class SessionReportSerializerTests(TestCase):
 
         report = serializer.save()
 
-        self.assertIsNotNone(report.submitted_at)
-
+        self.assertEqual(report.submitted_at, fixed_time)
 
     def test_cannot_report_soft_deleted_session(self):
         self.session.is_deleted = True
