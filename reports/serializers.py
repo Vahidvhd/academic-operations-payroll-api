@@ -8,8 +8,8 @@ from reports.models import SessionReport
 
 class SessionReportSerializer(serializers.ModelSerializer):
     session = serializers.PrimaryKeyRelatedField(
-            queryset=CourseSession.objects.filter(is_deleted=False)
-        )
+        queryset=CourseSession.objects.filter(is_deleted=False)
+    )
     
     class Meta:
         model = SessionReport
@@ -58,6 +58,15 @@ class SessionReportSerializer(serializers.ModelSerializer):
             if not owns_session:
                 raise serializers.ValidationError({"session": ("You can only report sessions from your own assignment.")})
 
+        if (
+            self.instance is not None
+            and "session" in attrs
+            and attrs["session"] != self.instance.session
+        ):
+            raise serializers.ValidationError(
+                {"session": "Session cannot be changed after report creation."}
+            )
+
         return attrs
 
     def create(self, validated_data):
@@ -73,3 +82,9 @@ class SessionReportSerializer(serializers.ModelSerializer):
 
         report.save()
         return report
+
+    def update(self, instance, validated_data):
+        validated_data["status"] = SessionReport.Status.PENDING
+        validated_data["submitted_at"] = timezone.now()
+
+        return super().update(instance, validated_data)

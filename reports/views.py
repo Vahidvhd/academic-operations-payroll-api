@@ -1,5 +1,6 @@
 from django.db.models import F, Q
 from rest_framework import viewsets
+from rest_framework.exceptions import ValidationError
 
 from reports.models import SessionReport
 from reports.serializers import SessionReportSerializer
@@ -43,3 +44,13 @@ class SessionReportViewSet(viewsets.ModelViewSet):
             ).distinct()
 
         return queryset
+
+    def partial_update(self, request, *args, **kwargs):
+        report = self.get_object()
+
+        if report.status != SessionReport.Status.REJECTED:
+            raise ValidationError(
+                {"detail": "Only rejected reports can be edited."}
+            )
+
+        return super().partial_update(request, *args, **kwargs)
