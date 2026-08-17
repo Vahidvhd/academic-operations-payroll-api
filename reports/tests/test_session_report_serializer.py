@@ -116,3 +116,21 @@ class SessionReportSerializerTests(TestCase):
         report = serializer.save()
 
         self.assertIsNotNone(report.submitted_at)
+
+
+    def test_cannot_report_soft_deleted_session(self):
+        self.session.is_deleted = True
+        self.session.save()
+
+        serializer = SessionReportSerializer(
+            data={
+                "session": self.session.id,
+                "lesson_summary": "Introduction to Python",
+                "present_count": 10,
+                "absent_count": 2,
+            },
+            context={"request": self.request},
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("session", serializer.errors)

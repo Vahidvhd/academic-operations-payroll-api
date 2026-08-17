@@ -2,11 +2,15 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework import serializers
 
-from academics.models import TeacherClassAssignment
+from academics.models import CourseSession, TeacherClassAssignment
 from reports.models import SessionReport
 
 
 class SessionReportSerializer(serializers.ModelSerializer):
+    session = serializers.PrimaryKeyRelatedField(
+            queryset=CourseSession.objects.filter(is_deleted=False)
+        )
+    
     class Meta:
         model = SessionReport
         fields = [
