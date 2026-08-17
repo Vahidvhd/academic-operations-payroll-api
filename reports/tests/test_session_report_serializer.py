@@ -39,8 +39,8 @@ class SessionReportSerializerTests(TestCase):
         self.course_class = CourseClass.objects.create(
             school=self.school,
             term=self.term,
-            course_name="Python Basics",
-            course_code="PY-101",
+            title="Python Basics",
+            class_code="PY-101",
             start_date=date(2026, 8, 1),
             end_date=date(2026, 8, 31),
             session_duration=90,
@@ -61,3 +61,17 @@ class SessionReportSerializerTests(TestCase):
         self.factory = APIRequestFactory()
         self.request = self.factory.post("/reports/")
         self.request.user = self.teacher
+
+
+    def test_teacher_can_report_own_assigned_session(self):
+        serializer = SessionReportSerializer(
+            data={
+                "session": self.session.id,
+                "lesson_summary": "Introduction to Python",
+                "present_count": 10,
+                "absent_count": 2,
+            },
+            context={"request": self.request},
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
