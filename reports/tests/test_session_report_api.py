@@ -41,3 +41,24 @@ class SessionReportAPITests(APITestCase):
             last_name="Finance",
             role=User.Role.FINANCE_OFFICER,
         )
+
+        self.school = School.objects.create(
+            name="Test School",
+            address="London",
+        )
+
+        self.term = Term.objects.create(
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+            term_type=Term.TermType.REGULAR,
+        )
+
+        self.course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY101",
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+            session_duration=90,
+        )
