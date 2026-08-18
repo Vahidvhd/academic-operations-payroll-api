@@ -19,4 +19,25 @@ User = get_user_model()
 
 class SessionReportAPITests(APITestCase):
     def setUp(self):
-        pass
+        self.teacher = User.objects.create_user(
+            username="teacher",
+            first_name="Test",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07111111111",
+            emergency_phone_number="07222222222",
+        )
+
+        self.education_officer = User.objects.create_user(
+            username="education",
+            first_name="Test",
+            last_name="Education",
+            role=User.Role.EDUCATION_OFFICER,
+        )
+
+        self.finance_officer = User.objects.create_user(
+            username="finance",
+            first_name="Test",
+            last_name="Finance",
+            role=User.Role.FINANCE_OFFICER,
+        )
