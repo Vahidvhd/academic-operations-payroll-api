@@ -88,3 +88,31 @@ class SessionReportSerializer(serializers.ModelSerializer):
         validated_data["submitted_at"] = timezone.now()
 
         return super().update(instance, validated_data)
+
+
+class SessionReportReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SessionReport
+        fields = [
+            "status",
+            "review_note",
+        ]
+
+    def validate(self, attrs):
+        status = attrs.get("status")
+        review_note = attrs.get("review_note", "").strip()
+
+        if status not in [
+            SessionReport.Status.APPROVED,
+            SessionReport.Status.REJECTED,
+        ]:
+            raise serializers.ValidationError(
+                {"status": "Status must be approved or rejected."}
+            )
+
+        if status == SessionReport.Status.REJECTED and not review_note:
+            raise serializers.ValidationError(
+                {"review_note": "Review note is required when rejecting a report."}
+            )
+
+        return attrs

@@ -1,10 +1,17 @@
 from django.db.models import F, Q
+from django.utils import timezone
 from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
 
 from reports.models import SessionReport
-from reports.serializers import SessionReportSerializer
-from users.permissions import IsEducationOfficerOrTeacher, IsTeacher
+from reports.serializers import SessionReportReviewSerializer, SessionReportSerializer
+from users.permissions import (
+    IsEducationOfficer,
+    IsEducationOfficerOrTeacher,
+    IsTeacher,
+)
 
 
 class SessionReportViewSet(viewsets.ModelViewSet):
@@ -21,6 +28,9 @@ class SessionReportViewSet(viewsets.ModelViewSet):
 
         if self.action == "partial_update":
             return [IsTeacher()]
+
+        if self.action == "review":
+            return [IsEducationOfficer()]
 
         return super().get_permissions()
 
@@ -54,3 +64,36 @@ class SessionReportViewSet(viewsets.ModelViewSet):
             )
 
         return super().partial_update(request, *args, **kwargs)
+
+    @action(detail=True, methods=["post"])
+    def review(self, request, pk=None):
+        report = self.get_object()
+
+        if report.status == SessionReport.Status.APPROVED:
+            raise ValidationError(
+                {"detail": "Approved reports cannot be reviewed again."}
+            )
+
+        serializer = SessionReportReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        new_status = serializer.validated_data["status"]
+
+        if (
+            report.status == SessionReport.Status.REJECTED
+            and new_status != SessionReport.Status.APPROVED
+        ):
+            raise ValidationError(
+                {"detail": "A rejected report can only be approved or resubmitted by the teacher."}
+            )
+
+        report.status = new_status
+        report.review_note = serializer.validated_data.get("review_note", "")
+        report.reviewed_by = request.user
+
+        if new_status == SessionReport.Status.APPROVED:
+            report.late_hours = report.calculate_late_hours(timezone.now())
+
+        report.save()
+
+        return Response(SessionReportSerializer(report).data)
