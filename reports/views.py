@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
+from reports.filters import SessionReportFilter
 from reports.models import SessionReport
 from reports.serializers import SessionReportReviewSerializer, SessionReportSerializer
 from users.permissions import (
@@ -17,6 +18,7 @@ from users.permissions import (
 class SessionReportViewSet(viewsets.ModelViewSet):
     queryset = SessionReport.objects.all()
     serializer_class = SessionReportSerializer
+    filterset_class = SessionReportFilter
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_permissions(self):
@@ -54,6 +56,13 @@ class SessionReportViewSet(viewsets.ModelViewSet):
             ).distinct()
 
         return queryset
+
+    def filter_queryset(self, queryset):
+        if (self.action == "list" and self.request.user.role == "education_officer"):
+            return super().filter_queryset(queryset)
+
+        return queryset
+
 
     def partial_update(self, request, *args, **kwargs):
         report = self.get_object()
