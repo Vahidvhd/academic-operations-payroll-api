@@ -645,3 +645,66 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.status, SessionReport.Status.APPROVED)
         self.assertEqual(report.reviewed_by, self.education_officer)
         self.assertEqual(report.review_note, "Approved after review.")
+
+
+    def test_approved_report_cannot_be_reviewed_again(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.APPROVED,
+            submitted_at=timezone.now(),
+            reviewed_by=self.education_officer,
+            review_note="Approved.",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-review", args=[report.id])
+
+        data = {
+            "status": SessionReport.Status.REJECTED,
+            "review_note": "Changed my mind.",
+        }
+
+        response = self.client.post(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        report.refresh_from_db()
+        self.assertEqual(report.status, SessionReport.Status.APPROVED)
+
+
+    def test_teacher_cannot_review_report(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-review", args=[report.id])
+
+        data = {
+            "status": SessionReport.Status.APPROVED,
+            "review_note": "Approved by teacher.",
+        }
+
+        response = self.client.post(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+        report.refresh_from_db()
+        self.assertEqual(report.status, SessionReport.Status.PENDING)
