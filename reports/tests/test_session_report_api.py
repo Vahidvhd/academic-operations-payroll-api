@@ -388,3 +388,34 @@ class SessionReportAPITests(APITestCase):
 
         report.refresh_from_db()
         self.assertEqual(report.lesson_summary, "Python basics")
+
+
+    def test_teacher_cannot_edit_approved_report(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.APPROVED,
+            submitted_at=timezone.now(),
+            reviewed_by=self.education_officer,
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-detail", args=[report.id])
+
+        data = {
+            "lesson_summary": "Updated summary",
+        }
+
+        response = self.client.patch(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        report.refresh_from_db()
+        self.assertEqual(report.lesson_summary, "Python basics")   
