@@ -320,3 +320,71 @@ class SessionReportAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["id"], report.id)
+
+
+    def test_teacher_can_resubmit_rejected_report(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Old summary",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.REJECTED,
+            submitted_at=timezone.now(),
+            reviewed_by=self.education_officer,
+            review_note="Please update the summary.",
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-detail", args=[report.id])
+
+        data = {
+            "lesson_summary": "Updated summary",
+            "present_count": 11,
+            "absent_count": 1,
+        }
+
+        response = self.client.patch(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.lesson_summary, "Updated summary")
+        self.assertEqual(report.present_count, 11)
+        self.assertEqual(report.absent_count, 1)
+        self.assertEqual(report.status, SessionReport.Status.PENDING)
+
+
+    def test_teacher_cannot_edit_pending_report(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-detail", args=[report.id])
+
+        data = {
+            "lesson_summary": "Updated summary",
+        }
+
+        response = self.client.patch(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        report.refresh_from_db()
+        self.assertEqual(report.lesson_summary, "Python basics")
