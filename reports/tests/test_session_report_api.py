@@ -157,3 +157,63 @@ class SessionReportAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(SessionReport.objects.count(), 0)
+
+
+    def test_teacher_only_sees_own_reports(self):
+        own_report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        other_teacher = User.objects.create_user(
+            username="list_other_teacher",
+            first_name="Other",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07555555555",
+            emergency_phone_number="07666666666",
+        )
+
+        other_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django",
+            class_code="DJ102",
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=other_teacher,
+            course_class=other_course_class,
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+        )
+
+        other_session = CourseSession.objects.create(
+            course_class=other_course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=other_session,
+            lesson_summary="Django basics",
+            present_count=8,
+            absent_count=1,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], own_report.id)
