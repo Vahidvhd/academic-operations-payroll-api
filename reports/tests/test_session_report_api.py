@@ -103,3 +103,57 @@ class SessionReportAPITests(APITestCase):
         report = SessionReport.objects.get()
         self.assertEqual(report.session, self.session)
         self.assertEqual(report.status, SessionReport.Status.PENDING)
+
+
+    def test_teacher_cannot_create_report_for_another_teachers_session(self):
+        other_teacher = User.objects.create_user(
+            username="other_teacher",
+            first_name="Other",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07333333333",
+            emergency_phone_number="07444444444",
+        )
+
+        other_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django",
+            class_code="DJ101",
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=other_teacher,
+            course_class=other_course_class,
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+        )
+
+        other_session = CourseSession.objects.create(
+            course_class=other_course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        data = {
+            "session": other_session.id,
+            "lesson_summary": "Django basics",
+            "present_count": 8,
+            "absent_count": 1,
+        }
+
+        response = self.client.post(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(SessionReport.objects.count(), 0)
