@@ -418,4 +418,70 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(response.status_code, 400)
 
         report.refresh_from_db()
-        self.assertEqual(report.lesson_summary, "Python basics")   
+        self.assertEqual(report.lesson_summary, "Python basics")
+
+
+    def test_teacher_cannot_edit_another_teachers_rejected_report(self):
+        other_teacher = User.objects.create_user(
+            username="edit_other_teacher",
+            first_name="Other",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07999999999",
+            emergency_phone_number="07000000000",
+        )
+
+        other_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django REST",
+            class_code="DJ104",
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=other_teacher,
+            course_class=other_course_class,
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+        )
+
+        other_session = CourseSession.objects.create(
+            course_class=other_course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        report = SessionReport.objects.create(
+            session=other_session,
+            lesson_summary="Old summary",
+            present_count=8,
+            absent_count=1,
+            status=SessionReport.Status.REJECTED,
+            submitted_at=timezone.now(),
+            reviewed_by=self.education_officer,
+            review_note="Please update.",
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-detail", args=[report.id])
+
+        data = {
+            "lesson_summary": "Updated summary",
+        }
+
+        response = self.client.patch(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        report.refresh_from_db()
+        self.assertEqual(report.lesson_summary, "Old summary")
