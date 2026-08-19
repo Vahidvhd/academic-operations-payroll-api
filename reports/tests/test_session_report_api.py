@@ -708,3 +708,62 @@ class SessionReportAPITests(APITestCase):
 
         report.refresh_from_db()
         self.assertEqual(report.status, SessionReport.Status.PENDING)
+
+
+    def test_finance_officer_cannot_review_report(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.finance_officer)
+
+        url = reverse("session-report-review", args=[report.id])
+
+        data = {
+            "status": SessionReport.Status.APPROVED,
+            "review_note": "Approved.",
+        }
+
+        response = self.client.post(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+        report.refresh_from_db()
+        self.assertEqual(report.status, SessionReport.Status.PENDING)
+
+
+    def test_anonymous_user_cannot_review_report(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        url = reverse("session-report-review", args=[report.id])
+
+        data = {
+            "status": SessionReport.Status.APPROVED,
+            "review_note": "Approved.",
+        }
+
+        response = self.client.post(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+        report.refresh_from_db()
+        self.assertEqual(report.status, SessionReport.Status.PENDING)
+        
