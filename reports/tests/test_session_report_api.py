@@ -217,3 +217,35 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["id"], own_report.id)
+
+
+    def test_education_officer_can_see_all_reports(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], report.id)
+
+
+    def test_finance_officer_cannot_access_reports(self):
+        self.client.force_authenticate(user=self.finance_officer)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_anonymous_user_cannot_access_reports(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
