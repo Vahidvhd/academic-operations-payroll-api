@@ -576,3 +576,72 @@ class SessionReportAPITests(APITestCase):
 
         report.refresh_from_db()
         self.assertEqual(report.status, SessionReport.Status.PENDING)
+
+
+    def test_education_officer_can_approve_pending_report(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-review", args=[report.id])
+
+        data = {
+            "status": SessionReport.Status.APPROVED,
+            "review_note": "Looks good.",
+        }
+
+        response = self.client.post(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.status, SessionReport.Status.APPROVED)
+        self.assertEqual(report.reviewed_by, self.education_officer)
+        self.assertEqual(report.review_note, "Looks good.")
+
+
+    def test_education_officer_can_approve_rejected_report(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.REJECTED,
+            submitted_at=timezone.now(),
+            reviewed_by=self.education_officer,
+            review_note="Needs review.",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-review", args=[report.id])
+
+        data = {
+            "status": SessionReport.Status.APPROVED,
+            "review_note": "Approved after review.",
+        }
+
+        response = self.client.post(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.status, SessionReport.Status.APPROVED)
+        self.assertEqual(report.reviewed_by, self.education_officer)
+        self.assertEqual(report.review_note, "Approved after review.")
