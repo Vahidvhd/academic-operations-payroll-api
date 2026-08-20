@@ -13,7 +13,7 @@ from academics.models import (
     TeacherClassAssignment,
     Term,
 )
-from reports.models import SessionReport
+from reports.models import ReportStatusHistory, SessionReport
 
 User = get_user_model()
 
@@ -439,6 +439,15 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.present_count, 11)
         self.assertEqual(report.absent_count, 1)
         self.assertEqual(report.status, SessionReport.Status.PENDING)
+        self.assertEqual(ReportStatusHistory.objects.count(), 1)
+
+        history = ReportStatusHistory.objects.get()
+
+        self.assertEqual(history.session_report, report)
+        self.assertEqual(history.changed_by, self.teacher)
+        self.assertEqual(history.old_status, SessionReport.Status.REJECTED)
+        self.assertEqual(history.new_status, SessionReport.Status.PENDING)
+        self.assertEqual(history.note, "")
 
 
     def test_teacher_cannot_change_session_when_resubmitting_report(self):
@@ -692,7 +701,15 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.status, SessionReport.Status.REJECTED)
         self.assertEqual(report.review_note, "Please add more detail.")
         self.assertEqual(report.reviewed_by, self.education_officer)
+        self.assertEqual(ReportStatusHistory.objects.count(), 1)
 
+        history = ReportStatusHistory.objects.get()
+
+        self.assertEqual(history.session_report, report)
+        self.assertEqual(history.changed_by, self.education_officer)
+        self.assertEqual(history.old_status, SessionReport.Status.PENDING)
+        self.assertEqual(history.new_status, SessionReport.Status.REJECTED)
+        self.assertEqual(history.note, "Please add more detail.")
 
     def test_education_officer_cannot_reject_without_review_note(self):
         report = SessionReport.objects.create(
@@ -788,6 +805,16 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.reviewed_by, self.education_officer)
         self.assertEqual(report.review_note, "Looks good.")
 
+        self.assertEqual(ReportStatusHistory.objects.count(), 1)
+
+        history = ReportStatusHistory.objects.get()
+
+        self.assertEqual(history.session_report, report)
+        self.assertEqual(history.changed_by, self.education_officer)
+        self.assertEqual(history.old_status, SessionReport.Status.PENDING)
+        self.assertEqual(history.new_status, SessionReport.Status.APPROVED)
+        self.assertEqual(history.note, "Looks good.")
+
 
     def test_education_officer_can_approve_rejected_report(self):
         report = SessionReport.objects.create(
@@ -823,6 +850,16 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.status, SessionReport.Status.APPROVED)
         self.assertEqual(report.reviewed_by, self.education_officer)
         self.assertEqual(report.review_note, "Approved after review.")
+
+        self.assertEqual(ReportStatusHistory.objects.count(), 1)
+
+        history = ReportStatusHistory.objects.get()
+
+        self.assertEqual(history.session_report, report)
+        self.assertEqual(history.changed_by, self.education_officer)
+        self.assertEqual(history.old_status, SessionReport.Status.REJECTED)
+        self.assertEqual(history.new_status, SessionReport.Status.APPROVED)
+        self.assertEqual(history.note, "Approved after review.")
 
 
     def test_education_officer_cannot_reject_rejected_report_again(self):
