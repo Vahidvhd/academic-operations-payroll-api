@@ -1514,6 +1514,138 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(response.data[0]["id"], own_report.id)
 
 
+    def test_education_officer_can_view_report_status_history(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        ReportStatusHistory.objects.create(
+            session_report=report,
+            changed_by=self.education_officer,
+            old_status=SessionReport.Status.PENDING,
+            new_status=SessionReport.Status.REJECTED,
+            note="Please add more detail.",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse(
+            "session-report-history",
+            args=[report.id],
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
+        self.assertEqual(
+            response.data[0]["old_status"],
+            SessionReport.Status.PENDING,
+        )
+        self.assertEqual(
+            response.data[0]["new_status"],
+            SessionReport.Status.REJECTED,
+        )
+        self.assertEqual(
+            response.data[0]["changed_by"],
+            self.education_officer.id,
+        )
+        self.assertEqual(
+            response.data[0]["note"],
+            "Please add more detail.",
+        )
+
+
+    def test_teacher_cannot_view_report_status_history(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        ReportStatusHistory.objects.create(
+            session_report=report,
+            changed_by=self.education_officer,
+            old_status=SessionReport.Status.PENDING,
+            new_status=SessionReport.Status.REJECTED,
+            note="Please add more detail.",
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse(
+            "session-report-history",
+            args=[report.id],
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_finance_officer_cannot_view_report_status_history(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        ReportStatusHistory.objects.create(
+            session_report=report,
+            changed_by=self.education_officer,
+            old_status=SessionReport.Status.PENDING,
+            new_status=SessionReport.Status.REJECTED,
+            note="Please add more detail.",
+        )
+
+        self.client.force_authenticate(user=self.finance_officer)
+
+        url = reverse(
+            "session-report-history",
+            args=[report.id],
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_anonymous_user_cannot_view_report_status_history(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        ReportStatusHistory.objects.create(
+            session_report=report,
+            changed_by=self.education_officer,
+            old_status=SessionReport.Status.PENDING,
+            new_status=SessionReport.Status.REJECTED,
+            note="Please add more detail.",
+        )
+
+        url = reverse(
+            "session-report-history",
+            args=[report.id],
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 401)
+
+
     def test_full_session_report_workflow(self):
         self.client.force_authenticate(user=self.teacher)
 
