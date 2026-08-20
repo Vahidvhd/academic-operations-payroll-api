@@ -1018,3 +1018,77 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["id"], first_report.id)
+
+
+    def test_education_officer_can_filter_reports_by_date_from(self):
+        SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Old report",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        later_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 20, 10, 0)
+            ),
+            session_number=2,
+        )
+
+        later_report = SessionReport.objects.create(
+            session=later_session,
+            lesson_summary="Later report",
+            present_count=9,
+            absent_count=3,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"date_from": "2026-08-15"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], later_report.id)
+
+
+    def test_education_officer_can_filter_reports_by_date_to(self):
+        early_report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Early report",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        later_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 20, 10, 0)
+            ),
+            session_number=2,
+        )
+
+        SessionReport.objects.create(
+            session=later_session,
+            lesson_summary="Later report",
+            present_count=9,
+            absent_count=3,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"date_to": "2026-08-15"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], early_report.id)
