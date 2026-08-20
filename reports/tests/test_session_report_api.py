@@ -1258,3 +1258,90 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["id"], own_report.id)
+
+
+    def test_full_session_report_workflow(self):
+        self.client.force_authenticate(user=self.teacher)
+
+        create_data = {
+            "session": self.session.id,
+            "lesson_summary": "Python basics",
+            "present_count": 10,
+            "absent_count": 2,
+        }
+
+        create_response = self.client.post(
+            self.url,
+            create_data,
+            format="json",
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+
+        report = SessionReport.objects.get()
+
+        self.assertEqual(report.status, SessionReport.Status.PENDING)
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        review_url = reverse(
+            "session-report-review",
+            args=[report.id],
+        )
+
+        reject_response = self.client.post(
+            review_url,
+            {
+                "status": SessionReport.Status.REJECTED,
+                "review_note": "Please add more detail.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(reject_response.status_code, 200)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.status, SessionReport.Status.REJECTED)
+
+        self.client.force_authenticate(user=self.teacher)
+
+        detail_url = reverse(
+            "session-report-detail",
+            args=[report.id],
+        )
+
+        resubmit_response = self.client.patch(
+            detail_url,
+            {
+                "lesson_summary": "Updated Python basics",
+                "present_count": 11,
+                "absent_count": 1,
+            },
+            format="json",
+        )
+
+        self.assertEqual(resubmit_response.status_code, 200)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.status, SessionReport.Status.PENDING)
+        self.assertEqual(report.lesson_summary, "Updated Python basics")
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        approve_response = self.client.post(
+            review_url,
+            {
+                "status": SessionReport.Status.APPROVED,
+                "review_note": "Approved.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(approve_response.status_code, 200)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.status, SessionReport.Status.APPROVED)
+        self.assertEqual(report.reviewed_by, self.education_officer)
