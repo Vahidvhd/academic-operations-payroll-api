@@ -106,6 +106,86 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.status, SessionReport.Status.PENDING)
 
 
+
+    @patch("reports.serializers.timezone")
+    def test_teacher_cannot_create_report_before_session_ends(
+        self,
+        mock_timezone,
+    ):
+        mock_timezone.now.return_value = timezone.make_aware(
+            datetime(2026, 8, 10, 11, 29)
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        data = {
+            "session": self.session.id,
+            "lesson_summary": "Python basics",
+            "present_count": 10,
+            "absent_count": 2,
+        }
+
+        response = self.client.post(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("session", response.data)
+        self.assertEqual(SessionReport.objects.count(), 0)
+
+
+    def test_teacher_cannot_create_second_report_for_same_session(self):
+        SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="First report",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        data = {
+            "session": self.session.id,
+            "lesson_summary": "Second report",
+            "present_count": 9,
+            "absent_count": 3,
+        }
+
+        response = self.client.post(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("session", response.data)
+        self.assertEqual(SessionReport.objects.count(), 1)
+
+    def test_teacher_cannot_create_report_with_negative_attendance(self):
+        self.client.force_authenticate(user=self.teacher)
+
+        data = {
+            "session": self.session.id,
+            "lesson_summary": "Python basics",
+            "present_count": -1,
+            "absent_count": -1,
+        }
+
+        response = self.client.post(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("present_count", response.data)
+        self.assertIn("absent_count", response.data)
+        self.assertEqual(SessionReport.objects.count(), 0)
+        
+
     def test_teacher_cannot_create_report_for_another_teachers_session(self):
         other_teacher = User.objects.create_user(
             username="other_teacher",
