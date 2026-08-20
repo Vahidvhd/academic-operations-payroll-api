@@ -1,9 +1,10 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
 from academics.models import CourseSession, TeacherClassAssignment
-from reports.models import SessionReport
+from reports.models import ReportStatusHistory, SessionReport
 
 
 class SessionReportSerializer(serializers.ModelSerializer):
@@ -84,11 +85,24 @@ class SessionReportSerializer(serializers.ModelSerializer):
         return report
 
     def update(self, instance, validated_data):
+        request = self.context["request"]
+        old_status = instance.status
+
         validated_data["status"] = SessionReport.Status.PENDING
         validated_data["submitted_at"] = timezone.now()
 
-        return super().update(instance, validated_data)
+        with transaction.atomic():
+            report = super().update(instance, validated_data)
 
+            ReportStatusHistory.objects.create(
+                session_report=report,
+                changed_by=request.user,
+                old_status=old_status,
+                new_status=report.status,
+            )
+
+        return report
+    
 
 class SessionReportReviewSerializer(serializers.ModelSerializer):
     class Meta:
@@ -116,3 +130,18 @@ class SessionReportReviewSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+
+class ReportStatusHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReportStatusHistory
+        fields = [
+            "id",
+            "old_status",
+            "new_status",
+            "changed_by",
+            "note",
+            "created_at",
+        ]
+
+        read_only_fields = fields

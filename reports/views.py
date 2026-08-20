@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 from rest_framework import viewsets
@@ -6,8 +7,12 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from reports.filters import SessionReportFilter
-from reports.models import SessionReport
-from reports.serializers import SessionReportReviewSerializer, SessionReportSerializer
+from reports.models import ReportStatusHistory, SessionReport
+from reports.serializers import (
+    ReportStatusHistorySerializer,
+    SessionReportReviewSerializer,
+    SessionReportSerializer,
+)
 from users.permissions import (
     IsEducationOfficer,
     IsEducationOfficerOrTeacher,
@@ -32,6 +37,9 @@ class SessionReportViewSet(viewsets.ModelViewSet):
             return [IsTeacher()]
 
         if self.action == "review":
+            return [IsEducationOfficer()]
+
+        if self.action == "history":
             return [IsEducationOfficer()]
 
         return super().get_permissions()
@@ -87,6 +95,7 @@ class SessionReportViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         new_status = serializer.validated_data["status"]
+        old_status = report.status
 
         if (
             report.status == SessionReport.Status.REJECTED
@@ -95,14 +104,40 @@ class SessionReportViewSet(viewsets.ModelViewSet):
             raise ValidationError(
                 {"detail": "A rejected report can only be approved or resubmitted by the teacher."}
             )
+        
 
-        report.status = new_status
-        report.review_note = serializer.validated_data.get("review_note", "")
-        report.reviewed_by = request.user
+        with transaction.atomic():
+            report.status = new_status
+            report.review_note = serializer.validated_data.get("review_note", "")
+            report.reviewed_by = request.user
 
-        if new_status == SessionReport.Status.APPROVED:
-            report.late_hours = report.calculate_late_hours(timezone.now())
+            if new_status == SessionReport.Status.APPROVED:
+                report.late_hours = report.calculate_late_hours(timezone.now())
 
-        report.save()
+            report.save()
+
+            ReportStatusHistory.objects.create(
+                session_report=report,
+                changed_by=request.user,
+                old_status=old_status,
+                new_status=new_status,
+                note=report.review_note,
+            )
 
         return Response(SessionReportSerializer(report).data)
+
+
+    @action(detail=True, methods=["get"])
+    def history(self, request, pk=None):
+        report = self.get_object()
+
+        histories = ReportStatusHistory.objects.filter(
+            session_report=report
+        ).order_by("created_at")
+
+        serializer = ReportStatusHistorySerializer(
+            histories,
+            many=True,
+        )
+
+        return Response(serializer.data)
