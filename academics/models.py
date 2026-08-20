@@ -6,21 +6,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 
-
-class TimeStampedModel(models.Model):
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
-
-
-class SoftDeleteModel(models.Model):
-    is_deleted = models.BooleanField(default=False)
-    deleted_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        abstract = True
+from core.models import SoftDeleteModel, TimeStampedModel
 
 
 class School(TimeStampedModel, SoftDeleteModel):
@@ -37,6 +23,7 @@ class School(TimeStampedModel, SoftDeleteModel):
 
     def __str__(self):
         return self.name
+
 
 class Term(TimeStampedModel, SoftDeleteModel):
     class TermType(models.TextChoices):
