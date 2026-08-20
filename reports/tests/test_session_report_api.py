@@ -856,3 +856,165 @@ class SessionReportAPITests(APITestCase):
 
         self.assertEqual(report.status, SessionReport.Status.APPROVED)
         self.assertEqual(report.late_hours, 49)
+
+
+    def test_education_officer_can_filter_reports_by_school(self):
+        first_report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        other_school = School.objects.create(
+            name="Other School",
+            address="Manchester",
+        )
+
+        other_course_class = CourseClass.objects.create(
+            school=other_school,
+            term=self.term,
+            title="Django",
+            class_code="DJ105",
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+            session_duration=90,
+        )
+
+        other_session = CourseSession.objects.create(
+            course_class=other_course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=other_session,
+            lesson_summary="Django basics",
+            present_count=8,
+            absent_count=1,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"school": self.school.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], first_report.id)
+
+
+    def test_education_officer_can_filter_reports_by_course_class(self):
+        first_report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        other_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django",
+            class_code="DJ106",
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+            session_duration=90,
+        )
+
+        other_session = CourseSession.objects.create(
+            course_class=other_course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=other_session,
+            lesson_summary="Django basics",
+            present_count=8,
+            absent_count=1,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"course_class": self.course_class.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], first_report.id)
+
+
+    def test_education_officer_can_filter_reports_by_teacher(self):
+        first_report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        other_teacher = User.objects.create_user(
+            username="filter_other_teacher",
+            first_name="Other",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07123456789",
+            emergency_phone_number="07987654321",
+        )
+
+        other_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django",
+            class_code="DJ107",
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=other_teacher,
+            course_class=other_course_class,
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+        )
+
+        other_session = CourseSession.objects.create(
+            course_class=other_course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=other_session,
+            lesson_summary="Django basics",
+            present_count=8,
+            absent_count=1,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"teacher": self.teacher.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], first_report.id)
