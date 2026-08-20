@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from academics.models import CourseClass, CourseSession, School, Term
-from reports.models import SessionReport
+from reports.models import ReportStatusHistory, SessionReport
 
 User = get_user_model()
 
@@ -264,3 +264,42 @@ class SessionReportModelTests(TestCase):
         approved_at = session_end + timedelta(hours=49, seconds=1)
 
         self.assertEqual(report.calculate_late_hours(approved_at), 2)
+
+
+    def test_status_history_records_status_change(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.make_aware(
+                datetime(2026, 8, 10, 12, 0)
+            ),
+        )
+
+        history = ReportStatusHistory.objects.create(
+            session_report=report,
+            changed_by=self.education_officer,
+            old_status=SessionReport.Status.PENDING,
+            new_status=SessionReport.Status.REJECTED,
+            note="Attendance needs correction.",
+        )
+
+        self.assertEqual(history.session_report, report)
+        self.assertEqual(history.changed_by, self.education_officer)
+        self.assertEqual(
+            history.old_status,
+            SessionReport.Status.PENDING,
+        )
+        self.assertEqual(
+            history.new_status,
+            SessionReport.Status.REJECTED,
+        )
+        self.assertEqual(
+            history.note,
+            "Attendance needs correction.",
+        )
+        self.assertEqual(
+            str(history),
+            f"Report {report.id}: pending -> rejected",
+        )

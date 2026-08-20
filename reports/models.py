@@ -63,3 +63,34 @@ class SessionReport(TimeStampedModel):
         late_seconds = (approved_at - deadline).total_seconds()
 
         return math.ceil(late_seconds / 3600)
+
+
+class ReportStatusHistory(TimeStampedModel):
+    session_report = models.ForeignKey(
+        SessionReport,
+        on_delete=models.PROTECT,
+        related_name="status_history",
+    )
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="report_status_changes",
+    )
+    old_status = models.CharField(
+        max_length=20,
+        choices=SessionReport.Status.choices,
+    )
+    new_status = models.CharField(
+        max_length=20,
+        choices=SessionReport.Status.choices,
+    )
+    note = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return (
+            f"Report {self.session_report_id}: "
+            f"{self.old_status} -> {self.new_status}"
+        )
