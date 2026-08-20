@@ -637,6 +637,30 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.lesson_summary, "Python basics")
 
 
+    def test_session_report_cannot_be_deleted(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse(
+            "session-report-detail",
+            args=[report.id],
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 405)
+        self.assertTrue(
+            SessionReport.objects.filter(id=report.id).exists()
+        )
+
+
     def test_education_officer_can_reject_pending_report(self):
         report = SessionReport.objects.create(
             session=self.session,
