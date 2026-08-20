@@ -809,3 +809,50 @@ class SessionReportAPITests(APITestCase):
 
         self.assertEqual(report.status, SessionReport.Status.APPROVED)
         self.assertEqual(report.late_hours, 1)
+
+
+    @patch("reports.views.timezone")
+    def test_resubmission_does_not_reset_late_hours_timer(
+        self,
+        mock_timezone,
+    ):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Updated summary",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.REJECTED,
+            submitted_at=timezone.make_aware(
+                datetime(2026, 8, 12, 12, 0)
+            ),
+            reviewed_by=self.education_officer,
+            review_note="Please update.",
+        )
+
+        approval_time = timezone.make_aware(
+            datetime(2026, 8, 14, 12, 30)
+        )
+
+        mock_timezone.now.return_value = approval_time
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-review", args=[report.id])
+
+        data = {
+            "status": SessionReport.Status.APPROVED,
+            "review_note": "Approved.",
+        }
+
+        response = self.client.post(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.status, SessionReport.Status.APPROVED)
+        self.assertEqual(report.late_hours, 49)
