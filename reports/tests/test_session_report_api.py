@@ -441,6 +441,47 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.status, SessionReport.Status.PENDING)
 
 
+    def test_teacher_cannot_change_session_when_resubmitting_report(self):
+        second_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=2,
+        )
+
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Old summary",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.REJECTED,
+            submitted_at=timezone.now(),
+            reviewed_by=self.education_officer,
+            review_note="Please update.",
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse(
+            "session-report-detail",
+            args=[report.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {"session": second_session.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.session, self.session)
+        self.assertEqual(report.status, SessionReport.Status.REJECTED)
+
+
     def test_teacher_cannot_edit_pending_report(self):
         report = SessionReport.objects.create(
             session=self.session,
@@ -659,6 +700,38 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.status, SessionReport.Status.PENDING)
 
 
+    def test_education_officer_cannot_set_review_status_to_pending(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse(
+            "session-report-review",
+            args=[report.id],
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "status": SessionReport.Status.PENDING,
+                "review_note": "",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("status", response.data)
+
+        report.refresh_from_db()
+        self.assertEqual(report.status, SessionReport.Status.PENDING)
+
+
     def test_education_officer_can_approve_pending_report(self):
         report = SessionReport.objects.create(
             session=self.session,
@@ -726,6 +799,46 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.status, SessionReport.Status.APPROVED)
         self.assertEqual(report.reviewed_by, self.education_officer)
         self.assertEqual(report.review_note, "Approved after review.")
+
+
+    def test_education_officer_cannot_reject_rejected_report_again(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.REJECTED,
+            submitted_at=timezone.now(),
+            reviewed_by=self.education_officer,
+            review_note="Original rejection reason.",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse(
+            "session-report-review",
+            args=[report.id],
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "status": SessionReport.Status.REJECTED,
+                "review_note": "Another rejection reason.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("detail", response.data)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.status, SessionReport.Status.REJECTED)
+        self.assertEqual(
+            report.review_note,
+            "Original rejection reason.",
+        )
 
 
     def test_approved_report_cannot_be_reviewed_again(self):
