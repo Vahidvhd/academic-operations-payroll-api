@@ -1092,3 +1092,59 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["id"], early_report.id)
+
+
+    def test_teacher_filter_uses_assignment_date(self):
+        second_teacher = User.objects.create_user(
+            username="historical_teacher",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07101010101",
+            emergency_phone_number="07202020202",
+        )
+
+        self.assignment.end_date = date(2026, 8, 15)
+        self.assignment.save()
+
+        TeacherClassAssignment.objects.create(
+            teacher=second_teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 8, 16),
+            end_date=date(2026, 8, 31),
+        )
+
+        first_report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="First teacher report",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        second_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 20, 10, 0)
+            ),
+            session_number=2,
+        )
+
+        SessionReport.objects.create(
+            session=second_session,
+            lesson_summary="Second teacher report",
+            present_count=9,
+            absent_count=3,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"teacher": self.teacher.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], first_report.id)
