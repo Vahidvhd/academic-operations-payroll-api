@@ -818,16 +818,36 @@ class SessionReportAPITests(APITestCase):
     ):
         report = SessionReport.objects.create(
             session=self.session,
-            lesson_summary="Updated summary",
+            lesson_summary="Old summary",
             present_count=10,
             absent_count=2,
             status=SessionReport.Status.REJECTED,
-            submitted_at=timezone.make_aware(
-                datetime(2026, 8, 12, 12, 0)
-            ),
+            submitted_at=timezone.now(),
             reviewed_by=self.education_officer,
             review_note="Please update.",
         )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        detail_url = reverse(
+            "session-report-detail",
+            args=[report.id],
+        )
+
+        response = self.client.patch(
+            detail_url,
+            {
+                "lesson_summary": "Updated summary",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.status, SessionReport.Status.PENDING)
+        self.assertEqual(report.lesson_summary, "Updated summary")
 
         approval_time = timezone.make_aware(
             datetime(2026, 8, 14, 12, 30)
@@ -837,16 +857,17 @@ class SessionReportAPITests(APITestCase):
 
         self.client.force_authenticate(user=self.education_officer)
 
-        url = reverse("session-report-review", args=[report.id])
-
-        data = {
-            "status": SessionReport.Status.APPROVED,
-            "review_note": "Approved.",
-        }
+        review_url = reverse(
+            "session-report-review",
+            args=[report.id],
+        )
 
         response = self.client.post(
-            url,
-            data,
+            review_url,
+            {
+                "status": SessionReport.Status.APPROVED,
+                "review_note": "Approved.",
+            },
             format="json",
         )
 
