@@ -1731,3 +1731,203 @@ class SessionReportAPITests(APITestCase):
 
         self.assertEqual(report.status, SessionReport.Status.APPROVED)
         self.assertEqual(report.reviewed_by, self.education_officer)
+
+        # monthly_summary
+    def test_teacher_can_view_monthly_report_summary(self):
+        second_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=2,
+        )
+
+        third_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 14, 10, 0)
+            ),
+            session_number=3,
+        )
+
+        fourth_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 16, 10, 0)
+            ),
+            session_number=4,
+        )
+
+        SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Report 1",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        SessionReport.objects.create(
+            session=second_session,
+            lesson_summary="Report 2",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.APPROVED,
+            submitted_at=timezone.now(),
+        )
+
+        SessionReport.objects.create(
+            session=third_session,
+            lesson_summary="Report 3",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.APPROVED,
+            submitted_at=timezone.now(),
+        )
+
+        SessionReport.objects.create(
+            session=fourth_session,
+            lesson_summary="Report 4",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.REJECTED,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-monthly-summary")
+
+        response = self.client.get(
+            url,
+            {
+                "year": 2026,
+                "month": 8,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["year"], 2026)
+        self.assertEqual(response.data["month"], 8)
+        self.assertEqual(response.data["pending"], 1)
+        self.assertEqual(response.data["approved"], 2)
+        self.assertEqual(response.data["rejected"], 1)
+        self.assertEqual(response.data["total"], 4)
+
+
+    def test_monthly_summary_only_counts_own_reports(self):
+        other_teacher = User.objects.create_user(
+            username="summary_other_teacher",
+            first_name="Other",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07123456789",
+            emergency_phone_number="07987654321",
+        )
+
+        other_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django",
+            class_code="DJ109",
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=other_teacher,
+            course_class=other_course_class,
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+        )
+
+        other_session = CourseSession.objects.create(
+            course_class=other_course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Own report",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        SessionReport.objects.create(
+            session=other_session,
+            lesson_summary="Other teacher report",
+            present_count=8,
+            absent_count=1,
+            status=SessionReport.Status.APPROVED,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-monthly-summary")
+
+        response = self.client.get(
+            url,
+            {
+                "year": 2026,
+                "month": 8,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["pending"], 1)
+        self.assertEqual(response.data["approved"], 0)
+        self.assertEqual(response.data["rejected"], 0)
+        self.assertEqual(response.data["total"], 1)
+
+
+    def test_monthly_summary_only_counts_requested_month(self):
+        september_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 9, 5, 10, 0)
+            ),
+            session_number=2,
+        )
+
+        SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="August report",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        SessionReport.objects.create(
+            session=september_session,
+            lesson_summary="September report",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.APPROVED,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-monthly-summary")
+
+        response = self.client.get(
+            url,
+            {
+                "year": 2026,
+                "month": 8,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["pending"], 1)
+        self.assertEqual(response.data["approved"], 0)
+        self.assertEqual(response.data["rejected"], 0)
+        self.assertEqual(response.data["total"], 1)
