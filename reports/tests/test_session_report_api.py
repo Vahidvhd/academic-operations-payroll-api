@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -766,4 +767,45 @@ class SessionReportAPITests(APITestCase):
 
         report.refresh_from_db()
         self.assertEqual(report.status, SessionReport.Status.PENDING)
-        
+
+
+    @patch("reports.views.timezone")
+    def test_approval_calculates_late_hours_from_session_end(
+        self,
+        mock_timezone,
+    ):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        approval_time = timezone.make_aware(
+            datetime(2026, 8, 12, 12, 30)
+        )
+
+        mock_timezone.now.return_value = approval_time
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-review", args=[report.id])
+
+        data = {
+            "status": SessionReport.Status.APPROVED,
+            "review_note": "Approved.",
+        }
+
+        response = self.client.post(
+            url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        report.refresh_from_db()
+
+        self.assertEqual(report.status, SessionReport.Status.APPROVED)
+        self.assertEqual(report.late_hours, 1)
