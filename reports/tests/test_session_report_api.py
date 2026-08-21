@@ -1931,3 +1931,85 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(response.data["approved"], 0)
         self.assertEqual(response.data["rejected"], 0)
         self.assertEqual(response.data["total"], 1)
+
+
+    def test_monthly_summary_requires_year(self):
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-monthly-summary")
+
+        response = self.client.get(
+            url,
+            {
+                "month": 8,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("year", response.data)
+
+
+    def test_monthly_summary_requires_month(self):
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-monthly-summary")
+
+        response = self.client.get(
+            url,
+            {
+                "year": 2026,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("month", response.data)
+
+
+    def test_monthly_summary_rejects_invalid_month(self):
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-monthly-summary")
+
+        response = self.client.get(
+            url,
+            {
+                "year": 2026,
+                "month": 13,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("month", response.data)
+
+
+    def test_monthly_summary_rejects_non_integer_year(self):
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-monthly-summary")
+
+        response = self.client.get(
+            url,
+            {
+                "year": "abc",
+                "month": 8,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("year", response.data)
+
+
+    def test_education_officer_cannot_view_monthly_summary(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-monthly-summary")
+
+        response = self.client.get(
+            url,
+            {
+                "year": 2026,
+                "month": 8,
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
