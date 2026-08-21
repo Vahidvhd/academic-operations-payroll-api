@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from reports.filters import SessionReportFilter
 from reports.models import ReportStatusHistory, SessionReport
 from reports.serializers import (
+    BulkReportApprovalSerializer,
     MonthlyReportSummaryQuerySerializer,
     ReportStatusHistorySerializer,
     SessionReportReviewSerializer,
@@ -45,6 +46,9 @@ class SessionReportViewSet(viewsets.ModelViewSet):
 
         if self.action == "monthly_summary":
             return [IsTeacher()]
+
+        if self.action == "bulk_approve":
+            return [IsEducationOfficer()]
 
         return super().get_permissions()
 
@@ -181,5 +185,74 @@ class SessionReportViewSet(viewsets.ModelViewSet):
                 "year": year,
                 "month": month,
                 **summary,
+            }
+        )
+
+    @action(detail=False, methods=["post"], url_path="bulk-approve")
+    def bulk_approve(self, request):
+        serializer = BulkReportApprovalSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        report_ids = serializer.validated_data["report_ids"]
+
+        reports = list(
+            self.get_queryset().filter(id__in=report_ids)
+        )
+
+        found_ids = {report.id for report in reports}
+        missing_ids = set(report_ids) - found_ids
+
+        if missing_ids:
+            raise ValidationError(
+                {
+                    "report_ids": (
+                        f"Reports not found: {sorted(missing_ids)}"
+                    )
+                }
+            )
+
+        already_approved_ids = [
+            report.id
+            for report in reports
+            if report.status == SessionReport.Status.APPROVED
+        ]
+
+        if already_approved_ids:
+            raise ValidationError(
+                {
+                    "report_ids": (
+                        f"Reports already approved: "
+                        f"{already_approved_ids}"
+                    )
+                }
+            )
+
+        approved_ids = []
+        approval_time = timezone.now()
+
+        with transaction.atomic():
+            for report in reports:
+                old_status = report.status
+
+                report.status = SessionReport.Status.APPROVED
+                report.reviewed_by = request.user
+                report.review_note = ""
+                report.late_hours = report.calculate_late_hours(approval_time)
+                report.save()
+
+                ReportStatusHistory.objects.create(
+                    session_report=report,
+                    changed_by=request.user,
+                    old_status=old_status,
+                    new_status=SessionReport.Status.APPROVED,
+                    note="",
+                )
+
+                approved_ids.append(report.id)
+
+        return Response(
+            {
+                "approved_count": len(approved_ids),
+                "approved_report_ids": approved_ids,
             }
         )
