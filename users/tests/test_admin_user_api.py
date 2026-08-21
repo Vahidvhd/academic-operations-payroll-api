@@ -115,3 +115,121 @@ class AdminUserCreateAPITests(APITestCase):
             user.role,
             User.Role.EDUCATION_OFFICER,
         )
+
+
+    def test_teacher_cannot_create_user_via_admin_api(self):
+        teacher = User.objects.create_user(
+            username="teacher_user",
+            password="Teacher123!",
+            first_name="Test",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07111111111",
+            emergency_phone_number="07222222222",
+        )
+
+        self.client.force_authenticate(user=teacher)
+
+        url = reverse("admin-user-create")
+
+        response = self.client.post(
+            url,
+            {
+                "username": "new_user",
+                "password": "User123!",
+                "first_name": "New",
+                "last_name": "User",
+                "role": User.Role.EDUCATION_OFFICER,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(
+            User.objects.filter(username="new_user").exists()
+        )
+
+
+    def test_education_officer_cannot_create_user_via_admin_api(self):
+        education_officer = User.objects.create_user(
+            username="education_user",
+            password="Education123!",
+            first_name="Test",
+            last_name="Education",
+            role=User.Role.EDUCATION_OFFICER,
+        )
+
+        self.client.force_authenticate(user=education_officer)
+
+        url = reverse("admin-user-create")
+
+        response = self.client.post(
+            url,
+            {
+                "username": "new_user",
+                "password": "User123!",
+                "first_name": "New",
+                "last_name": "User",
+                "role": User.Role.FINANCE_OFFICER,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(
+            User.objects.filter(username="new_user").exists()
+        )
+
+
+    def test_finance_officer_cannot_create_user_via_admin_api(self):
+        finance_officer = User.objects.create_user(
+            username="finance_user",
+            password="Finance123!",
+            first_name="Test",
+            last_name="Finance",
+            role=User.Role.FINANCE_OFFICER,
+        )
+
+        self.client.force_authenticate(user=finance_officer)
+
+        url = reverse("admin-user-create")
+
+        response = self.client.post(
+            url,
+            {
+                "username": "new_user",
+                "password": "User123!",
+                "first_name": "New",
+                "last_name": "User",
+                "role": User.Role.TEACHER,
+                "phone_number": "07111111111",
+                "emergency_phone_number": "07222222222",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(
+            User.objects.filter(username="new_user").exists()
+        )
+
+
+    def test_anonymous_user_cannot_create_user_via_admin_api(self):
+        url = reverse("admin-user-create")
+
+        response = self.client.post(
+            url,
+            {
+                "username": "new_user",
+                "password": "User123!",
+                "first_name": "New",
+                "last_name": "User",
+                "role": User.Role.EDUCATION_OFFICER,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertFalse(
+            User.objects.filter(username="new_user").exists()
+        )
