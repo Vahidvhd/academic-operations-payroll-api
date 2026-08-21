@@ -2043,3 +2043,205 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 401)
+
+
+    # bulk approval
+    def test_education_officer_can_bulk_approve_reports(self):
+        second_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=2,
+        )
+
+        first_report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Report 1",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        second_report = SessionReport.objects.create(
+            session=second_session,
+            lesson_summary="Report 2",
+            present_count=9,
+            absent_count=1,
+            status=SessionReport.Status.REJECTED,
+            submitted_at=timezone.now(),
+            reviewed_by=self.education_officer,
+            review_note="Needs update.",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-bulk-approve")
+
+        response = self.client.post(
+            url,
+            {
+                "report_ids": [
+                    first_report.id,
+                    second_report.id,
+                ]
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        first_report.refresh_from_db()
+        second_report.refresh_from_db()
+
+        self.assertEqual(
+            first_report.status,
+            SessionReport.Status.APPROVED,
+        )
+        self.assertEqual(
+            second_report.status,
+            SessionReport.Status.APPROVED,
+        )
+
+        self.assertEqual(
+            first_report.reviewed_by,
+            self.education_officer,
+        )
+        self.assertEqual(
+            second_report.reviewed_by,
+            self.education_officer,
+        )
+
+        self.assertEqual(response.data["approved_count"], 2)
+        self.assertCountEqual(
+            response.data["approved_report_ids"],
+            [
+                first_report.id,
+                second_report.id,
+            ],
+        )
+
+        self.assertEqual(
+            ReportStatusHistory.objects.count(),
+            2,
+        )
+
+        histories = ReportStatusHistory.objects.order_by("id")
+
+        self.assertEqual(
+            histories[0].old_status,
+            SessionReport.Status.PENDING,
+        )
+        self.assertEqual(
+            histories[0].new_status,
+            SessionReport.Status.APPROVED,
+        )
+
+        self.assertEqual(
+            histories[1].old_status,
+            SessionReport.Status.REJECTED,
+        )
+        self.assertEqual(
+            histories[1].new_status,
+            SessionReport.Status.APPROVED,
+        )
+
+        self.assertEqual(
+            histories[0].changed_by,
+            self.education_officer,
+        )
+        self.assertEqual(
+            histories[1].changed_by,
+            self.education_officer,
+        )
+
+
+    def test_bulk_approve_fails_if_any_report_is_already_approved(self):
+        second_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 8, 12, 10, 0)
+            ),
+            session_number=2,
+        )
+
+        pending_report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Pending report",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        approved_report = SessionReport.objects.create(
+            session=second_session,
+            lesson_summary="Approved report",
+            present_count=9,
+            absent_count=1,
+            status=SessionReport.Status.APPROVED,
+            submitted_at=timezone.now(),
+            reviewed_by=self.education_officer,
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-bulk-approve")
+
+        response = self.client.post(
+            url,
+            {
+                "report_ids": [
+                    pending_report.id,
+                    approved_report.id,
+                ]
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("report_ids", response.data)
+
+        pending_report.refresh_from_db()
+
+        self.assertEqual(
+            pending_report.status,
+            SessionReport.Status.PENDING,
+        )
+
+
+    def test_bulk_approve_fails_if_any_report_does_not_exist(self):
+        pending_report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Pending report",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-bulk-approve")
+
+        response = self.client.post(
+            url,
+            {
+                "report_ids": [
+                    pending_report.id,
+                    999999,
+                ]
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("report_ids", response.data)
+
+        pending_report.refresh_from_db()
+
+        self.assertEqual(
+            pending_report.status,
+            SessionReport.Status.PENDING,
+        )
