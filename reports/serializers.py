@@ -155,3 +155,18 @@ class MonthlyReportSummaryQuerySerializer(serializers.Serializer):
         min_value=1,
         max_value=12,
     )
+
+
+class BulkReportApprovalSerializer(serializers.Serializer):
+    report_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False,
+    )
+
+    def validate_report_ids(self, value):
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError(
+                "Duplicate report IDs are not allowed."
+            )
+
+        return value
