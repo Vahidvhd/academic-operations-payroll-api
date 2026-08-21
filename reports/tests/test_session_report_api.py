@@ -2339,3 +2339,63 @@ class SessionReportAPITests(APITestCase):
             report.status,
             SessionReport.Status.PENDING,
         )
+
+
+    def test_finance_officer_cannot_bulk_approve_reports(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Pending report",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.finance_officer)
+
+        url = reverse("session-report-bulk-approve")
+
+        response = self.client.post(
+            url,
+            {
+                "report_ids": [report.id],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+        report.refresh_from_db()
+        self.assertEqual(
+            report.status,
+            SessionReport.Status.PENDING,
+        )
+
+
+    def test_anonymous_user_cannot_bulk_approve_reports(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Pending report",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        url = reverse("session-report-bulk-approve")
+
+        response = self.client.post(
+            url,
+            {
+                "report_ids": [report.id],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+        report.refresh_from_db()
+        self.assertEqual(
+            report.status,
+            SessionReport.Status.PENDING,
+        )
