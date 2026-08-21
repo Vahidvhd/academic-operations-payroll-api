@@ -34,6 +34,7 @@ class IsFinanceOfficer(BasePermission):
             and request.user.role == User.Role.FINANCE_OFFICER
         )
 
+
 class IsEducationOfficerOrTeacher(BasePermission):
     message = "User does not have permission."
 
@@ -47,4 +48,14 @@ class IsEducationOfficerOrTeacher(BasePermission):
         return (
             request.user.role == User.Role.TEACHER
             and request.method in SAFE_METHODS
+        )
+
+
+class IsSuperUser(BasePermission):
+    message = "Only superusers have permission."
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.is_superuser
         )
