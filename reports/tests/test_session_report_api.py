@@ -2013,3 +2013,33 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+
+    def test_finance_officer_cannot_view_monthly_summary(self):
+        self.client.force_authenticate(user=self.finance_officer)
+
+        url = reverse("session-report-monthly-summary")
+
+        response = self.client.get(
+            url,
+            {
+                "year": 2026,
+                "month": 8,
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_anonymous_user_cannot_view_monthly_summary(self):
+        url = reverse("session-report-monthly-summary")
+
+        response = self.client.get(
+            url,
+            {
+                "year": 2026,
+                "month": 8,
+            },
+        )
+
+        self.assertEqual(response.status_code, 401)
