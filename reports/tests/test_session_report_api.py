@@ -2245,3 +2245,97 @@ class SessionReportAPITests(APITestCase):
             pending_report.status,
             SessionReport.Status.PENDING,
         )
+
+
+    def test_bulk_approve_rejects_empty_report_ids(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-bulk-approve")
+
+        response = self.client.post(
+            url,
+            {
+                "report_ids": [],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("report_ids", response.data)
+
+
+    def test_bulk_approve_rejects_duplicate_report_ids(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Pending report",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-bulk-approve")
+
+        response = self.client.post(
+            url,
+            {
+                "report_ids": [
+                    report.id,
+                    report.id,
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("report_ids", response.data)
+
+
+    def test_bulk_approve_rejects_non_integer_report_id(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        url = reverse("session-report-bulk-approve")
+
+        response = self.client.post(
+            url,
+            {
+                "report_ids": [1, "abc"],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("report_ids", response.data)
+
+
+    def test_teacher_cannot_bulk_approve_reports(self):
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Pending report",
+            present_count=10,
+            absent_count=2,
+            status=SessionReport.Status.PENDING,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        url = reverse("session-report-bulk-approve")
+
+        response = self.client.post(
+            url,
+            {
+                "report_ids": [report.id],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+        report.refresh_from_db()
+        self.assertEqual(
+            report.status,
+            SessionReport.Status.PENDING,
+        )
