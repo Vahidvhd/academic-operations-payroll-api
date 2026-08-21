@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 User = get_user_model()
@@ -32,6 +33,10 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
             "emergency_phone_number",
         ]
         read_only_fields = ["id"]
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
 
     def validate(self, attrs):
         role = attrs.get("role")

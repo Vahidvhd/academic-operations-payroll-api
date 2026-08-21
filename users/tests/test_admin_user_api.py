@@ -233,3 +233,37 @@ class AdminUserCreateAPITests(APITestCase):
         self.assertFalse(
             User.objects.filter(username="new_user").exists()
         )
+
+
+    def test_superuser_cannot_create_user_with_weak_password(self):
+        superuser = User.objects.create_superuser(
+            username="admin4",
+            password="Admin123!",
+            first_name="Admin",
+            last_name="User",
+        )
+
+        self.client.force_authenticate(user=superuser)
+
+        url = reverse("admin-user-create")
+
+        response = self.client.post(
+            url,
+            {
+                "username": "weak_password_user",
+                "password": "123",
+                "first_name": "Weak",
+                "last_name": "Password",
+                "role": User.Role.EDUCATION_OFFICER,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("password", response.data)
+
+        self.assertFalse(
+            User.objects.filter(
+                username="weak_password_user"
+            ).exists()
+        )
