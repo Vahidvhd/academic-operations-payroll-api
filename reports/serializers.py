@@ -145,3 +145,13 @@ class ReportStatusHistorySerializer(serializers.ModelSerializer):
         ]
 
         read_only_fields = fields
+
+
+class MonthlyReportSummaryQuerySerializer(serializers.Serializer):
+    year = serializers.IntegerField(
+        min_value=2000,
+    )
+    month = serializers.IntegerField(
+        min_value=1,
+        max_value=12,
+    )

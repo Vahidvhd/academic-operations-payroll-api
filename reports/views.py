@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import Count, F, Q
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from reports.filters import SessionReportFilter
 from reports.models import ReportStatusHistory, SessionReport
 from reports.serializers import (
+    MonthlyReportSummaryQuerySerializer,
     ReportStatusHistorySerializer,
     SessionReportReviewSerializer,
     SessionReportSerializer,
@@ -41,6 +42,9 @@ class SessionReportViewSet(viewsets.ModelViewSet):
 
         if self.action == "history":
             return [IsEducationOfficer()]
+
+        if self.action == "monthly_summary":
+            return [IsTeacher()]
 
         return super().get_permissions()
 
@@ -126,7 +130,6 @@ class SessionReportViewSet(viewsets.ModelViewSet):
 
         return Response(SessionReportSerializer(report).data)
 
-
     @action(detail=True, methods=["get"])
     def history(self, request, pk=None):
         report = self.get_object()
@@ -141,3 +144,42 @@ class SessionReportViewSet(viewsets.ModelViewSet):
         )
 
         return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="monthly-summary")
+    def monthly_summary(self, request):
+        query_serializer = MonthlyReportSummaryQuerySerializer(
+            data=request.query_params
+        )
+        query_serializer.is_valid(raise_exception=True)
+
+        year = query_serializer.validated_data["year"]
+        month = query_serializer.validated_data["month"]
+
+        reports = self.get_queryset().filter(
+            session__session_datetime__year=year,
+            session__session_datetime__month=month,
+        )
+
+        summary = reports.aggregate(
+            pending=Count(
+                "id",
+                filter=Q(status=SessionReport.Status.PENDING),
+            ),
+            approved=Count(
+                "id",
+                filter=Q(status=SessionReport.Status.APPROVED),
+            ),
+            rejected=Count(
+                "id",
+                filter=Q(status=SessionReport.Status.REJECTED),
+            ),
+            total=Count("id"),
+        )
+
+        return Response(
+            {
+                "year": year,
+                "month": month,
+                **summary,
+            }
+        )
