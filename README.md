@@ -3,487 +3,205 @@
 [![CI](https://github.com/Vahidvhd/instructor-reporting-payroll-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Vahidvhd/instructor-reporting-payroll-api/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/Vahidvhd/instructor-reporting-payroll-api/graph/badge.svg?token=P54EYCF2QU)](https://codecov.io/github/Vahidvhd/instructor-reporting-payroll-api)
 
-A Django REST API project for instructor operations, academic class management, instructor reporting, and payroll.
+A Django REST Framework backend for managing academic operations, instructor assignments, course sessions, and instructor reporting workflows.
 
-The project is currently developed through **Phase 2**.
+The project demonstrates backend engineering beyond basic CRUD, including role-based access control, historical teacher assignments, cross-model validation, transactional workflows, audit history, soft deletion, automated testing, and CI/CD tooling.
 
-## Phase 1
+**Current status:** Phases 1–3 completed. Payroll calculation is planned for the next phase.
 
-Phase 1 established the technical foundation of the project.
+## Key Features
 
-### Implemented
-
+- JWT authentication with access and refresh tokens
 - Custom Django user model
-- Three business roles:
+- Role-based access control for:
   - Teacher
   - Education Officer
   - Finance Officer
-- JWT authentication
-- Current user endpoint
-- Role-based permission classes
-- School, Term, and CourseClass models
-- PostgreSQL database
-- Docker Compose for PostgreSQL
-- User creation management command
-- Sample user seed command
-- Automated tests
-- Test coverage
-- GitHub Actions CI
-- Codecov integration
-- OpenAPI schema and Swagger UI
-
-## Phase 2
-
-Phase 2 adds the academic management workflow required for schools, terms, classes, and teacher assignments.
-
-### Implemented
-
-- School API
-- Term API
-- CourseClass API
-- TeacherClassAssignment API
-- Education Officer academic management permissions
-- Teacher access to assigned classes
-- CourseClass filtering by school, term, and teacher
-- CourseClass search by school and teacher information
-- Current teacher summary in CourseClass detail responses
-- Validation for class dates and session durations
-- Validation for teacher assignment date ranges
-- Validation preventing overlapping teacher assignments on the same class
-- Support for multiple teachers on the same class in different date ranges
-- Soft deletion for School, Term, and CourseClass
-- Automated tests for Phase 2 business rules and permissions
+- Superuser-only user creation API
+- Configured Django Admin for operational management
+- School, academic term, course class, and session management
+- Historical teacher-to-class assignments
+- Teacher-specific data visibility
+- Course and report filtering
+- Soft deletion for key academic records
+- Session scheduling with overlap validation
+- Instructor session reporting
+- Approval and rejection workflow
+- Rejected report editing and resubmission
+- Mandatory rejection reasons
+- 48-hour report lateness calculation
+- Report status audit history
+- Monthly report status summaries
+- Transactional bulk report approval
+- OpenAPI schema and Swagger documentation
+- PostgreSQL with Docker Compose
+- GitHub Actions CI and Codecov integration
+- 269 automated tests
+- 97% test coverage
 
 ## Tech Stack
 
 - Python 3.13
-- Django 5
+- Django 5.2
 - Django REST Framework
-- PostgreSQL
+- PostgreSQL 17
 - Simple JWT
 - django-filter
 - Docker / Docker Compose
 - drf-spectacular
 - Coverage.py
-- Codecov
 - GitHub Actions
+- Codecov
 
-## User Roles
+## Core Workflow
 
-The system supports three business roles.
+An Education Officer manages schools, terms, classes, teacher assignments, and course sessions.
+
+Teachers can access only the classes and sessions relevant to their assignments. After a session ends, the assigned teacher can submit a report containing the lesson summary and attendance figures.
+
+Reports start as `pending`.
+
+An Education Officer can then:
+
+- approve a report
+- reject a report with a required reason
+- review report status history
+- filter reports by school, class, teacher, and date
+- approve multiple selected reports in one atomic bulk operation
+
+A rejected report can be edited and resubmitted by the teacher, returning it to `pending`.
+
+When a report is approved, the system calculates lateness from the end of the session using a 48-hour grace period. Any partial hour beyond the grace period is rounded up.
+
+Status transitions are recorded in an audit history with the user responsible for the change and the timestamp.
+
+## Database Design
+
+The data model preserves historical teacher assignments and report status changes rather than overwriting operational history.
+
+![Entity Relationship Diagram](docs/erd/erd.png)
+
+The editable Draw.io source is available at [`docs/erd/erd.drawio`](docs/erd/erd.drawio).
+
+## API Overview
+
+Authentication:
+
+```text
+POST /api/auth/token/
+POST /api/auth/token/refresh/
+GET  /api/users/me/
+```
+
+Superuser management:
+
+```text
+POST /api/users/admin/create/
+```
+
+Academic operations:
+
+```text
+/api/schools/
+/api/terms/
+/api/course-classes/
+/api/teacher-class-assignments/
+/api/course-sessions/
+```
+
+Instructor reporting:
+
+```text
+GET  /api/reports/
+POST /api/reports/
+
+GET   /api/reports/<id>/
+PATCH /api/reports/<id>/
+
+POST /api/reports/<id>/review/
+GET  /api/reports/<id>/history/
+
+GET  /api/reports/monthly-summary/?year=2026&month=8
+POST /api/reports/bulk-approve/
+```
+
+Full endpoint documentation is available through Swagger.
+
+## Roles and Permissions
 
 ### Teacher
 
-Represents an instructor.
+Teachers can:
 
-Teachers have additional profile information:
+- view their assigned classes and sessions
+- view their own session reports
+- submit reports only for their own assigned sessions
+- edit and resubmit rejected reports
+- view their monthly report status summary
 
-- phone number
-- emergency phone number
-
-Teachers can access only the classes assigned to them.
+Teachers cannot approve or reject reports.
 
 ### Education Officer
 
-Responsible for academic management operations, including:
+Education Officers can:
 
-- schools
-- terms
-- course classes
-- teacher-class assignments
+- manage academic data
+- manage teacher-class assignments
+- manage course sessions
+- view and filter reports
+- approve or reject reports
+- bulk approve selected reports
+- view report status history
 
 ### Finance Officer
 
-Responsible for finance and payroll-related operations.
+The Finance Officer role is defined and protected by the permission system.
 
-Phase 2 academic management endpoints are not available to the Finance Officer.
+Payroll functionality will be introduced in the next phase.
 
-Each normal application user has one business role.
+### System Administrator
 
-Django staff and superuser permissions are kept separate from these business roles.
+Django administration is kept separate from business roles.
 
-## Authentication
+Django superusers can:
 
-Authentication is handled using JWT access and refresh tokens.
+- manage users through `/admin/`
+- assign one of the three business roles
+- create users through the protected Admin API
 
-There is no public user registration endpoint.
+Report and report-history data are configured as read-only in Django Admin to prevent bypassing the reporting workflow.
 
-Users are created by the system or through management commands.
+## Business Rules
 
-### Obtain Tokens
+The API enforces domain rules at the model and serializer layers, including:
 
-```text
-POST /api/token/
-```
-
-Example request:
-
-```json
-{
-  "username": "education_sample",
-  "password": "SamplePassword@"
-}
-```
-
-### Refresh Access Token
-
-```text
-POST /api/token/refresh/
-```
-
-### Current User
-
-The authenticated user can check their own account information and role using:
-
-```text
-GET /api/users/me/
-```
-
-Protected endpoints require an access token:
-
-```text
-Authorization: Bearer <ACCESS_TOKEN>
-```
-
-## Academic Models
-
-### School
-
-Stores school information.
-
-Main fields:
-
-- name
-- address
-
-A school is unique by the combination of its name and address.
-
-School records use soft deletion.
-
-### Term
-
-Represents an academic term.
-
-Main fields:
-
-- start date
-- end date
-- term type
-
-Supported term types:
-
-- regular
-- summer
-
-Current validation includes:
-
-- end date cannot be before start date
-- term starts on the first day of a month
-- term ends on the last day of a month
-- terms cannot overlap
-
-Term records use soft deletion.
-
-A term that already has course classes cannot currently be deleted.
-
-### CourseClass
-
-Represents a class running inside a specific school and term.
-
-Main fields:
-
-- school
-- term
-- title
-- class code
-- start date
-- end date
-- session duration
-
-Supported session durations:
-
-- 60 minutes
-- 90 minutes
-- 120 minutes
-
-Current validation includes:
-
-- end date cannot be before start date
-- class dates must be inside the selected term
+- terms must start on the first day of a month
+- terms must end on the final day of a month
+- academic terms cannot overlap
+- class dates must remain inside their term
 - session duration must be 60, 90, or 120 minutes
-- school, term, and class code combination must be unique
-
-CourseClass records use soft deletion.
-
-### TeacherClassAssignment
-
-Represents the relationship between a teacher and a class during a specific date range.
-
-Main fields:
-
-- teacher
-- course class
-- start date
-- optional end date
-
-The separate assignment model preserves teacher changes over the lifetime of a class.
-
-Example:
-
-```text
-Teacher A: 2026-09-01 to 2026-10-31
-Teacher B: 2026-11-01 to 2026-12-31
-```
-
-Current validation includes:
-
-- assigned user must have the Teacher role
-- start date cannot be after end date
-- assignment dates must stay inside the CourseClass date range
-- teacher assignment date ranges on the same class cannot overlap
-- multiple sequential teacher assignments are allowed
-- an open assignment must be closed before another overlapping assignment can become active
-
-If `end_date` is omitted, the assignment is treated as continuing through the relevant class period.
-
-## Academic API
-
-All academic endpoints require authentication.
-
-### Schools
-
-```text
-GET    /api/schools/
-POST   /api/schools/
-GET    /api/schools/<id>/
-PUT    /api/schools/<id>/
-PATCH  /api/schools/<id>/
-DELETE /api/schools/<id>/
-```
-
-School management is restricted to the Education Officer.
-
-Deleting a School performs a soft delete.
-
-### Terms
-
-```text
-GET    /api/terms/
-POST   /api/terms/
-GET    /api/terms/<id>/
-DELETE /api/terms/<id>/
-```
-
-Term management is restricted to the Education Officer.
-
-`PUT` and `PATCH` are not currently exposed for Term.
-
-Deleting an eligible Term performs a soft delete.
-
-A Term that already has CourseClass records cannot currently be deleted.
-
-### Course Classes
-
-```text
-GET    /api/course-classes/
-POST   /api/course-classes/
-GET    /api/course-classes/<id>/
-PUT    /api/course-classes/<id>/
-PATCH  /api/course-classes/<id>/
-DELETE /api/course-classes/<id>/
-```
-
-Education Officers can manage course classes.
-
-Teachers have read access only to classes assigned to them.
-
-Deleting a CourseClass performs a soft delete.
-
-### Teacher-Class Assignments
-
-```text
-GET    /api/teacher-class-assignments/
-POST   /api/teacher-class-assignments/
-GET    /api/teacher-class-assignments/<id>/
-PUT    /api/teacher-class-assignments/<id>/
-PATCH  /api/teacher-class-assignments/<id>/
-DELETE /api/teacher-class-assignments/<id>/
-```
-
-Teacher-class assignment management is restricted to the Education Officer.
-
-## CourseClass Filtering
-
-CourseClass records can be filtered by school, term, or teacher.
-
-Examples:
-
-```text
-GET /api/course-classes/?school=1
-GET /api/course-classes/?term=1
-GET /api/course-classes/?teacher=3
-```
-
-Filters can also be combined:
-
-```text
-GET /api/course-classes/?school=1&term=1&teacher=3
-```
-
-## CourseClass Search
-
-CourseClass records support text search using the `search` query parameter.
-
-Examples:
-
-```text
-GET /api/course-classes/?search=Maktab
-GET /api/course-classes/?search=Vahid
-```
-
-Search currently covers:
-
-- school name
-- term type
-- assigned teacher first name
-- assigned teacher last name
-
-## Current Teacher Summary
-
-The detail response for a CourseClass includes a summary of the currently assigned teacher when an active assignment exists.
-
-Example:
-
-```text
-GET /api/course-classes/1/
-```
-
-Example response fragment:
-
-```json
-{
-  "id": 1,
-  "title": "Python Backend",
-  "class_code": "PY101",
-  "current_teacher": {
-    "id": 3,
-    "first_name": "Vahid",
-    "last_name": "Vahedi"
-  }
-}
-```
-
-If there is no active teacher assignment for the current date, `current_teacher` is returned as `null`.
-
-## Teacher Class Visibility
-
-A Teacher can only see CourseClass records connected to their own teacher assignments.
-
-The current implementation includes assigned classes regardless of whether the assignment is current, past, or future.
-
-Teachers cannot use these endpoints to manage schools, terms, teacher assignments, or other teachers' classes.
-
-## Date Format
-
-The current implementation uses **Gregorian dates** in API requests and responses.
-
-Example:
-
-```text
-2026-09-01
-```
-
-## Soft Deletion
-
-Soft deletion is currently implemented for:
-
-- School
-- Term
-- CourseClass
-
-A soft-deleted record remains in the database but is excluded from the normal API queryset.
-
-TeacherClassAssignment currently uses the default delete behavior.
-
-Deletion and locking rules may be extended in later phases when session reports introduce historical operational data.
-
-## Role-Based Permissions
-
-Reusable Django REST Framework permission classes include:
-
-- `IsTeacher`
-- `IsEducationOfficer`
-- `IsFinanceOfficer`
-- `IsEducationOfficerOrTeacher`
-
-These permissions check authentication and the user's assigned business role.
-
-Role boundaries are covered by automated tests.
-
-## Management Commands
-
-### Create a User
-
-Users can be created from the command line instead of through public registration.
-
-Example:
-
-```bash
-python manage.py create_user --role=teacher
-```
-
-Available roles:
-
-```text
-teacher
-education_officer
-finance_officer
-```
-
-### Create Sample Users
-
-For development and testing, sample users can be created with:
-
-```bash
-python manage.py seed_sample_users
-```
-
-The command is idempotent, so running it more than once does not create duplicate users.
-
-Sample accounts:
-
-| Username | Role |
-|---|---|
-| `teacher_sample` | Teacher |
-| `education_sample` | Education Officer |
-| `finance_sample` | Finance Officer |
-
-Sample password:
-
-```text
-SamplePassword@
-```
+- teacher assignments must remain inside class dates
+- teacher assignments for the same class cannot overlap
+- scheduled sessions cannot overlap
+- session numbers must be unique within a class
+- teachers can report only sessions belonging to their assignments
+- reports cannot be submitted before a session ends
+- only rejected reports can be edited
+- rejection requires a review note
+- approved reports cannot be reviewed again
 
 ## API Documentation
-
-OpenAPI documentation is generated using `drf-spectacular`.
 
 Swagger UI:
 
 ```text
-/api/docs/
+http://127.0.0.1:8000/api/docs/
 ```
 
 OpenAPI schema:
 
 ```text
-/api/schema/
-```
-
-When the development server is running, Swagger can be opened at:
-
-```text
-http://127.0.0.1:8000/api/docs/
+http://127.0.0.1:8000/api/schema/
 ```
 
 ## Local Setup
@@ -491,7 +209,7 @@ http://127.0.0.1:8000/api/docs/
 Clone the repository:
 
 ```bash
-git clone git@github.com:Vahidvhd/instructor-reporting-payroll-api.git
+git clone https://github.com/Vahidvhd/instructor-reporting-payroll-api.git
 cd instructor-reporting-payroll-api
 ```
 
@@ -508,6 +226,12 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+Create the environment file:
+
+```bash
+cp .env.example .env
+```
+
 Start PostgreSQL:
 
 ```bash
@@ -520,13 +244,13 @@ Run migrations:
 python manage.py migrate
 ```
 
-Optionally create the sample users:
+Optional development users:
 
 ```bash
 python manage.py seed_sample_users
 ```
 
-Start the Django development server:
+Start the API:
 
 ```bash
 python manage.py runserver
@@ -534,100 +258,40 @@ python manage.py runserver
 
 ## Testing
 
-Run the complete test suite with:
+Run the complete test suite:
 
 ```bash
 python manage.py test
 ```
 
-Run the tests with coverage:
+Run with coverage:
 
 ```bash
-python -m coverage run manage.py test
-python -m coverage report
+coverage run manage.py test
+coverage report
+coverage xml
 ```
 
-Coverage reports are uploaded to Codecov through GitHub Actions.
+Current test suite:
 
-Phase 2 tests cover the main academic workflow, including:
+```text
+269 tests
+97% coverage
+```
 
-- role-based access boundaries
-- School API behavior
-- Term validation
-- CourseClass validation
-- valid session duration choices
-- teacher assignment date validation
-- multiple sequential teachers on one class
-- overlapping teacher assignment rejection
-- teacher visibility restrictions
-- CourseClass filtering and search
-- current teacher detail behavior
+GitHub Actions runs Django system checks, the full test suite, and coverage reporting on pushes and pull requests.
 
-## Continuous Integration
+## Project Structure
 
-GitHub Actions runs automatically on pushes and pull requests.
+```text
+academics/   Academic models, serializers, filters, APIs, and admin
+reports/     Session reporting workflow, review logic, audit history
+users/       Authentication, roles, permissions, admin user management
+core/        Shared model abstractions
+config/      Django project configuration
+docs/erd/    ERD diagram and editable source
+```
 
-The CI workflow:
+## Roadmap
 
-- starts a PostgreSQL service
-- installs project dependencies
-- runs Django system checks
-- runs the test suite
-- generates the coverage report
-- uploads coverage results to Codecov
-
-## Current Project Status
-
-### Phase 1
-
-Completed foundation:
-
-- authentication and users
-- role-based access control
-- academic data models
-- PostgreSQL integration
-- automated testing
-- CI and coverage reporting
-- API documentation
-
-### Phase 2
-
-Implemented academic management workflow:
-
-- School management
-- Term management
-- CourseClass management
-- teacher-class assignment history
-- multiple sequential teachers per class
-- teacher-specific class visibility
-- filtering and search
-- current teacher summary
-- Phase 2 validations and tests
-
-## Current Limitations
-
-The following features are intentionally not part of the current implementation:
-
-- session scheduling and session reports
-- report approval and rejection workflow
-- late-report handling
-- report status history
-- payroll rates and monthly salary calculation
-
-These workflows belong to later project phases.
-
-Term updates through `PUT` and `PATCH` are not currently exposed.
-
-Deletion and historical locking rules will be revisited when report data is introduced, so academic records connected to operational history can be protected appropriately.
-
-## Next Phase
-
-Phase 3 will introduce the session reporting workflow, including:
-
-- scheduled course sessions
-- teacher session reports
-- report submission rules
-- late report detection
-- Education Officer approval and rejection
-- report resubmission
-- report-related permissions and tests
+The next phase will introduce the payroll workflow, including instructor rates, monthly salary calculation, late-report penalties, and payroll locking rules.
