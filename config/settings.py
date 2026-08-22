@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'payroll.apps.PayrollConfig',
 
     # Third-party apps
     "rest_framework",
