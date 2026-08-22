@@ -56,5 +56,56 @@ class TeacherTermWageModelTests(TestCase):
             base_wage_rate=Decimal("200.00"),
         )
 
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ValidationError) as context:
             wage.full_clean()
+
+        self.assertIn("teacher", context.exception.message_dict)
+
+
+    def test_set_by_must_have_finance_officer_role(self):
+        wage = TeacherTermWage(
+            teacher=self.teacher,
+            term=self.term,
+            set_by=self.teacher,
+            base_wage_rate=Decimal("200.00"),
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            wage.full_clean()
+
+        self.assertIn("set_by", context.exception.message_dict)
+
+
+    def test_teacher_and_term_must_be_unique(self):
+        TeacherTermWage.objects.create(
+            teacher=self.teacher,
+            term=self.term,
+            set_by=self.finance_officer,
+            base_wage_rate=Decimal("200.00"),
+        )
+
+        duplicate_wage = TeacherTermWage(
+            teacher=self.teacher,
+            term=self.term,
+            set_by=self.finance_officer,
+            base_wage_rate=Decimal("250.00"),
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            duplicate_wage.full_clean()
+
+        self.assertIn("__all__", context.exception.message_dict)
+
+
+    def test_base_wage_rate_must_be_positive(self):
+        wage = TeacherTermWage(
+            teacher=self.teacher,
+            term=self.term,
+            set_by=self.finance_officer,
+            base_wage_rate=Decimal("0.00"),
+        )
+
+        with self.assertRaises(ValidationError) as context:
+            wage.full_clean()
+
+        self.assertIn("base_wage_rate", context.exception.message_dict)
