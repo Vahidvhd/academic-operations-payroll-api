@@ -8,7 +8,6 @@ from rest_framework.test import APITestCase
 from academics.models import Term
 from payroll.models import TeacherTermWage
 
-
 User = get_user_model()
 
 
