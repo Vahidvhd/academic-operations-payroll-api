@@ -19,3 +19,9 @@ def apply_summer_multiplier(amount, is_summer):
         return amount * Decimal("1.1")
 
     return amount
+
+
+def calculate_late_penalty(amount, late_hours):
+    penalty_percent = min(late_hours, 100)
+
+    return amount * Decimal(penalty_percent) / Decimal("100")

@@ -4,6 +4,7 @@ from django.test import SimpleTestCase
 
 from payroll.services import (
     apply_summer_multiplier,
+    calculate_late_penalty,
     calculate_session_base_amount,
 )
 
@@ -65,3 +66,24 @@ class ApplySummerMultiplierTests(SimpleTestCase):
         )
 
         self.assertEqual(amount, Decimal("200.00"))
+
+
+class CalculateLatePenaltyTests(SimpleTestCase):
+    def test_late_hours_apply_one_percent_penalty_per_hour(self):
+        penalty = calculate_late_penalty(amount=Decimal("200.00"), late_hours=10)
+
+        self.assertEqual(penalty, Decimal("20.00"))
+
+
+    def test_zero_late_hours_has_no_penalty(self):
+        penalty = calculate_late_penalty(amount=Decimal("200.00"), late_hours=0)
+
+        self.assertEqual(penalty, Decimal("0.00"))
+
+
+    def test_late_penalty_is_capped_at_one_hundred_percent(self):
+        penalty = calculate_late_penalty(amount=Decimal("200.00"), late_hours=150)
+
+        self.assertEqual(penalty, Decimal("200.00"))
+
+
