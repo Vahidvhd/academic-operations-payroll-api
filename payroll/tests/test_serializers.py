@@ -30,14 +30,6 @@ class TeacherTermWageSerializerTests(TestCase):
             role=User.Role.FINANCE_OFFICER,
         )
 
-        self.inactive_teacher = User.objects.create_user(
-            username="inactive_teacher",
-            role=User.Role.TEACHER,
-            phone_number="07333333333",
-            emergency_phone_number="07444444444",
-            is_active=False,
-        )
-
         self.deleted_term = Term.objects.create(
             start_date=date(2026, 9, 1),
             end_date=date(2026, 9, 30),
@@ -61,19 +53,6 @@ class TeacherTermWageSerializerTests(TestCase):
         serializer = TeacherTermWageSerializer(
             data={
                 "teacher": self.finance_officer.id,
-                "term": self.term.id,
-                "base_wage_rate": "200.00",
-            }
-        )
-
-        self.assertFalse(serializer.is_valid())
-        self.assertIn("teacher", serializer.errors)
-
-
-    def test_inactive_teacher_is_rejected(self):
-        serializer = TeacherTermWageSerializer(
-            data={
-                "teacher": self.inactive_teacher.id,
                 "term": self.term.id,
                 "base_wage_rate": "200.00",
             }

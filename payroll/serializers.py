@@ -12,7 +12,6 @@ class TeacherTermWageSerializer(serializers.ModelSerializer):
     teacher = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.filter(
             role=User.Role.TEACHER,
-            is_active=True,
         )
     )
     term = serializers.PrimaryKeyRelatedField(

@@ -49,4 +49,4 @@ class TeacherTermWage(TimeStampedModel):
             raise ValidationError({"set_by": "Base wage must be set by a finance officer."})
 
     def __str__(self):
-        return (f"{self.teacher} - {self.term} - f{self.base_wage_rate}")
+        return (f"{self.teacher} - {self.term} - {self.base_wage_rate}")
