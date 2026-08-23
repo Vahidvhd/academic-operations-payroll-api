@@ -4,13 +4,15 @@ from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 
 from academics.models import CourseClass, CourseSession, School, Term
-from payroll.models import TeacherTermWage
+from payroll.models import MonthlySalary, TeacherTermWage
 from payroll.services import (
     apply_summer_multiplier,
     calculate_late_penalty,
     calculate_report_amount,
     calculate_session_amount,
     calculate_session_base_amount,
+    calculate_teacher_month_totals,
+    calculate_teacher_monthly_salary,
     get_approved_reports_for_teacher_month,
     get_teacher_sessions_for_month,
     get_teacher_term_wage,
@@ -462,3 +464,178 @@ class CalculateReportAmountTests(TestCase):
             amount_after_penalty,
             Decimal("220.00"),
         )
+
+
+class CalculateTeacherMonthTotalsTests(TestCase):
+    def setUp(self):
+        self.teacher = User.objects.create_user(
+            username="monthly_total_teacher",
+            role=User.Role.TEACHER,
+        )
+
+        self.finance_officer = User.objects.create_user(
+            username="monthly_total_finance",
+            role=User.Role.FINANCE_OFFICER,
+        )
+
+        self.school = School.objects.create(
+            name="Monthly Total School",
+            address="London",
+        )
+
+        self.term = Term.objects.create(
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            term_type=Term.TermType.REGULAR,
+        )
+
+        self.course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="MT101",
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            session_duration=90,
+        )
+
+        TeacherTermWage.objects.create(
+            teacher=self.teacher,
+            term=self.term,
+            set_by=self.finance_officer,
+            base_wage_rate=Decimal("200.00"),
+        )
+
+
+    def test_calculates_month_totals_from_multiple_reports(self):
+        session1 = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        session2 = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-20T10:00:00Z",
+            session_number=2,
+        )
+
+        SessionReport.objects.create(
+            session=session1,
+            status=SessionReport.Status.APPROVED,
+            lesson_summary="Lesson 1",
+            present_count=10,
+            absent_count=0,
+            late_hours=10,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        SessionReport.objects.create(
+            session=session2,
+            status=SessionReport.Status.APPROVED,
+            lesson_summary="Lesson 2",
+            present_count=10,
+            absent_count=0,
+            late_hours=0,
+            submitted_at="2026-09-20T12:00:00Z",
+        )
+
+        gross_amount, total_penalty_amount, net_amount = (
+            calculate_teacher_month_totals(
+                self.teacher,
+                2026,
+                9,
+            )
+        )
+
+        self.assertEqual(gross_amount, Decimal("400.00"))
+        self.assertEqual(total_penalty_amount, Decimal("20.00"))
+        self.assertEqual(net_amount, Decimal("380.00"))
+
+
+    def test_creates_monthly_salary_with_correct_totals(self):
+        session1 = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        session2 = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-20T10:00:00Z",
+            session_number=2,
+        )
+
+        SessionReport.objects.create(
+            session=session1,
+            status=SessionReport.Status.APPROVED,
+            lesson_summary="Lesson 1",
+            present_count=10,
+            absent_count=0,
+            late_hours=10,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        SessionReport.objects.create(
+            session=session2,
+            status=SessionReport.Status.APPROVED,
+            lesson_summary="Lesson 2",
+            present_count=10,
+            absent_count=0,
+            late_hours=0,
+            submitted_at="2026-09-20T12:00:00Z",
+        )
+
+        salary = calculate_teacher_monthly_salary(
+            self.teacher,
+            2026,
+            9,
+            self.finance_officer,
+        )
+
+        self.assertEqual(MonthlySalary.objects.count(), 1)
+        self.assertEqual(salary.teacher, self.teacher)
+        self.assertEqual(salary.year, 2026)
+        self.assertEqual(salary.month, 9)
+        self.assertEqual(
+            salary.calculated_by,
+            self.finance_officer,
+        )
+        self.assertEqual(
+            salary.gross_amount,
+            Decimal("400.00"),
+        )
+        self.assertEqual(
+            salary.total_penalty_amount,
+            Decimal("20.00"),
+        )
+        self.assertEqual(
+            salary.net_amount,
+            Decimal("380.00"),
+        )
+
+
+    def test_does_not_create_duplicate_monthly_salary(self):
+        existing_salary = MonthlySalary.objects.create(
+            teacher=self.teacher,
+            year=2026,
+            month=9,
+            calculated_by=self.finance_officer,
+            gross_amount=Decimal("400.00"),
+            total_penalty_amount=Decimal("20.00"),
+            net_amount=Decimal("380.00"),
+        )
+
+        salary = calculate_teacher_monthly_salary(
+            self.teacher,
+            2026,
+            9,
+            self.finance_officer,
+        )
+
+        self.assertEqual(MonthlySalary.objects.count(), 1)
+        self.assertEqual(salary, existing_salary)

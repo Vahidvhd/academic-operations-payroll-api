@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from academics.models import CourseSession, Term
 from academics.services import filter_sessions_for_teacher
-from payroll.models import TeacherTermWage
+from payroll.models import MonthlySalary, TeacherTermWage
 from reports.models import SessionReport
 
 
@@ -123,4 +123,76 @@ def calculate_report_amount(report, teacher):
         session_duration=course_class.session_duration,
         is_summer=is_summer,
         late_hours=report.late_hours,
+    )
+
+
+def calculate_teacher_month_totals(teacher, year, month):
+    reports = get_approved_reports_for_teacher_month(
+        teacher,
+        year,
+        month,
+    )
+
+    gross_amount = Decimal("0.00")
+    total_penalty_amount = Decimal("0.00")
+    net_amount = Decimal("0.00")
+
+    for report in reports:
+        (
+            amount_before_penalty,
+            penalty_amount,
+            amount_after_penalty,
+        ) = calculate_report_amount(
+            report,
+            teacher,
+        )
+
+        gross_amount += amount_before_penalty
+        total_penalty_amount += penalty_amount
+        net_amount += amount_after_penalty
+
+    return (
+        gross_amount,
+        total_penalty_amount,
+        net_amount,
+    )
+
+
+def calculate_teacher_monthly_salary(teacher, year, month, calculated_by):
+    existing_salary = MonthlySalary.objects.filter(
+        teacher=teacher,
+        year=year,
+        month=month,
+    ).first()
+
+    if existing_salary:
+        return existing_salary
+
+    sessions = get_teacher_sessions_for_month(
+        teacher,
+        year,
+        month,
+    )
+
+    if not sessions.exists():
+        return None
+
+    (
+        gross_amount,
+        total_penalty_amount,
+        net_amount,
+    ) = calculate_teacher_month_totals(
+        teacher,
+        year,
+        month,
+    )
+
+    return MonthlySalary.objects.create(
+        teacher=teacher,
+        year=year,
+        month=month,
+        calculated_by=calculated_by,
+        gross_amount=gross_amount,
+        total_penalty_amount=total_penalty_amount,
+        net_amount=net_amount,
     )
