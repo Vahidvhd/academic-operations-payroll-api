@@ -5,6 +5,7 @@ from django.test import SimpleTestCase
 from payroll.services import (
     apply_summer_multiplier,
     calculate_late_penalty,
+    calculate_session_amount,
     calculate_session_base_amount,
 )
 
@@ -87,3 +88,54 @@ class CalculateLatePenaltyTests(SimpleTestCase):
         self.assertEqual(penalty, Decimal("200.00"))
 
 
+class CalculateSessionAmountTests(SimpleTestCase):
+    def test_calculates_final_session_amount(self):
+        (
+            amount_before_penalty,
+            penalty_amount,
+            amount_after_penalty,
+        ) = calculate_session_amount(
+            base_wage_rate=Decimal("200.00"),
+            session_duration=90,
+            is_summer=True,
+            late_hours=10,
+        )
+
+        self.assertEqual(
+            amount_before_penalty,
+            Decimal("220.00"),
+        )
+        self.assertEqual(
+            penalty_amount,
+            Decimal("22.00"),
+        )
+        self.assertEqual(
+            amount_after_penalty,
+            Decimal("198.00"),
+        )
+
+
+    def test_rounds_session_amounts_to_two_decimal_places(self):
+        (amount_before_penalty, penalty_amount, amount_after_penalty) = calculate_session_amount(
+            base_wage_rate=Decimal("199.99"),
+            session_duration=120,
+            is_summer=True,
+            late_hours=1,
+        )
+
+        self.assertEqual(amount_before_penalty, Decimal("285.99"))
+        self.assertEqual(penalty_amount, Decimal("2.86"))
+        self.assertEqual(amount_after_penalty, Decimal("283.13"))
+
+
+    def test_one_hundred_percent_penalty_makes_final_amount_zero(self):
+        (amount_before_penalty, penalty_amount, amount_after_penalty) = calculate_session_amount(
+            base_wage_rate=Decimal("200.00"),
+            session_duration=90,
+            is_summer=False,
+            late_hours=150,
+        )
+
+        self.assertEqual(amount_before_penalty, Decimal("200.00"))
+        self.assertEqual(penalty_amount, Decimal("200.00"))
+        self.assertEqual(amount_after_penalty, Decimal("0.00"))
