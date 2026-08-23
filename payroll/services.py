@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from academics.models import CourseSession
+from academics.models import CourseSession, Term
 from academics.services import filter_sessions_for_teacher
 from payroll.models import TeacherTermWage
 from reports.models import SessionReport
@@ -105,3 +105,22 @@ def get_teacher_term_wage(teacher, term):
         raise ValueError(
             f"Base wage is not set for teacher {teacher.id} and term {term.id}."
         )
+
+
+def calculate_report_amount(report, teacher):
+    course_class = report.session.course_class
+    term = course_class.term
+
+    wage = get_teacher_term_wage(
+        teacher,
+        term,
+    )
+
+    is_summer = term.term_type == Term.TermType.SUMMER
+
+    return calculate_session_amount(
+        base_wage_rate=wage.base_wage_rate,
+        session_duration=course_class.session_duration,
+        is_summer=is_summer,
+        late_hours=report.late_hours,
+    )

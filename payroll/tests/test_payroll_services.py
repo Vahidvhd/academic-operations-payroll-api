@@ -8,6 +8,7 @@ from payroll.models import TeacherTermWage
 from payroll.services import (
     apply_summer_multiplier,
     calculate_late_penalty,
+    calculate_report_amount,
     calculate_session_amount,
     calculate_session_base_amount,
     get_approved_reports_for_teacher_month,
@@ -335,3 +336,129 @@ class GetTeacherTermWageTests(TestCase):
             )
         else:
             self.fail("ValueError was not raised.")
+
+
+class CalculateReportAmountTests(TestCase):
+    def setUp(self):
+        self.teacher = User.objects.create_user(
+            username="report_amount_teacher",
+            role=User.Role.TEACHER,
+        )
+
+        self.finance_officer = User.objects.create_user(
+            username="report_amount_finance",
+            role=User.Role.FINANCE_OFFICER,
+        )
+
+        self.school = School.objects.create(
+            name="Report Amount School",
+            address="London",
+        )
+
+        self.term = Term.objects.create(
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            term_type=Term.TermType.REGULAR,
+        )
+
+        self.course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="RA101",
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            session_duration=90,
+        )
+
+        TeacherTermWage.objects.create(
+            teacher=self.teacher,
+            term=self.term,
+            set_by=self.finance_officer,
+            base_wage_rate=Decimal("200.00"),
+        )
+
+
+    def test_calculates_amount_for_approved_report(self):
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        report = SessionReport.objects.create(
+            session=session,
+            status=SessionReport.Status.APPROVED,
+            lesson_summary="Test lesson",
+            present_count=10,
+            absent_count=0,
+            late_hours=10,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        (
+            amount_before_penalty,
+            penalty_amount,
+            amount_after_penalty,
+        ) = calculate_report_amount(
+            report,
+            self.teacher,
+        )
+
+        self.assertEqual(
+            amount_before_penalty,
+            Decimal("200.00"),
+        )
+        self.assertEqual(
+            penalty_amount,
+            Decimal("20.00"),
+        )
+        self.assertEqual(
+            amount_after_penalty,
+            Decimal("180.00"),
+        )
+
+
+    def test_applies_summer_multiplier_to_report_amount(self):
+        self.term.term_type = Term.TermType.SUMMER
+        self.term.save()
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        report = SessionReport.objects.create(
+            session=session,
+            status=SessionReport.Status.APPROVED,
+            lesson_summary="Test lesson",
+            present_count=10,
+            absent_count=0,
+            late_hours=0,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        (
+            amount_before_penalty,
+            penalty_amount,
+            amount_after_penalty,
+        ) = calculate_report_amount(
+            report,
+            self.teacher,
+        )
+
+        self.assertEqual(
+            amount_before_penalty,
+            Decimal("220.00"),
+        )
+        self.assertEqual(
+            penalty_amount,
+            Decimal("0.00"),
+        )
+        self.assertEqual(
+            amount_after_penalty,
+            Decimal("220.00"),
+        )
