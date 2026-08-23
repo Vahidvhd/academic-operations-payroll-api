@@ -1,5 +1,9 @@
 from decimal import Decimal
 
+from academics.models import CourseSession
+from academics.services import filter_sessions_for_teacher
+from reports.models import SessionReport
+
 
 def calculate_session_base_amount(base_wage_rate, session_duration):
     if session_duration == 60:
@@ -49,3 +53,42 @@ def calculate_session_amount(base_wage_rate, session_duration, is_summer, late_h
     amount_after_penalty = round(amount_after_penalty, 2)
 
     return (amount_before_penalty, penalty_amount, amount_after_penalty)
+
+
+def get_teacher_sessions_for_month(teacher, year, month):
+    sessions = CourseSession.objects.filter(
+        is_deleted=False,
+        session_datetime__year=year,
+        session_datetime__month=month,
+    )
+
+    return filter_sessions_for_teacher(
+        sessions,
+        teacher.id,
+    )
+
+
+def get_approved_reports_for_teacher_month(teacher, year, month):
+    sessions = get_teacher_sessions_for_month(
+        teacher,
+        year,
+        month,
+    )
+
+    reports = SessionReport.objects.filter(
+        session__in=sessions,
+    )
+
+    if reports.count() != sessions.count():
+        raise ValueError(
+            "All sessions must have a report before salary calculation."
+        )
+
+    if reports.exclude(
+        status=SessionReport.Status.APPROVED
+    ).exists():
+        raise ValueError(
+            "All reports must be approved before salary calculation."
+        )
+
+    return reports

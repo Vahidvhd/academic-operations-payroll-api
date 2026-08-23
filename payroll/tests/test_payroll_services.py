@@ -1,13 +1,20 @@
 from decimal import Decimal
 
-from django.test import SimpleTestCase
+from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase, TestCase
 
+from academics.models import CourseClass, CourseSession, School, Term
 from payroll.services import (
     apply_summer_multiplier,
     calculate_late_penalty,
     calculate_session_amount,
     calculate_session_base_amount,
+    get_approved_reports_for_teacher_month,
+    get_teacher_sessions_for_month,
 )
+from reports.models import SessionReport
+
+User = get_user_model()
 
 
 class CalculateSessionBaseAmountTests(SimpleTestCase):
@@ -139,3 +146,137 @@ class CalculateSessionAmountTests(SimpleTestCase):
         self.assertEqual(amount_before_penalty, Decimal("200.00"))
         self.assertEqual(penalty_amount, Decimal("200.00"))
         self.assertEqual(amount_after_penalty, Decimal("0.00"))
+
+
+class GetTeacherSessionsForMonthTests(TestCase):
+    def setUp(self):
+        self.teacher = User.objects.create_user(
+            username="teacher",
+            role=User.Role.TEACHER,
+        )
+
+        self.school = School.objects.create(
+            name="Test School",
+            address="London",
+        )
+
+        self.term = Term.objects.create(
+            start_date="2026-09-01",
+            end_date="2026-10-31",
+            term_type=Term.TermType.REGULAR,
+        )
+
+        self.course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY101",
+            start_date="2026-09-01",
+            end_date="2026-10-31",
+            session_duration=90,
+        )
+
+    def test_returns_only_teacher_sessions_from_requested_month(self):
+        september_session = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-10-10T10:00:00Z",
+            session_number=2,
+        )
+
+        sessions = get_teacher_sessions_for_month(
+            self.teacher,
+            2026,
+            9,
+        )
+
+        self.assertEqual(sessions.count(), 1)
+        self.assertEqual(sessions.first(), september_session)
+
+
+    def test_salary_reports_fail_when_session_has_no_report(self):
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        try:
+            get_approved_reports_for_teacher_month(
+                self.teacher,
+                2026,
+                9,
+            )
+        except ValueError as error:
+            self.assertEqual(
+                str(error),
+                "All sessions must have a report before salary calculation.",
+            )
+        else:
+            self.fail("ValueError was not raised.")
+
+
+    def test_salary_reports_fail_when_report_is_pending(self):
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Test lesson",
+            present_count=10,
+            absent_count=0,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        try:
+            get_approved_reports_for_teacher_month(
+                self.teacher,
+                2026,
+                9,
+            )
+        except ValueError as error:
+            self.assertEqual(
+                str(error),
+                "All reports must be approved before salary calculation.",
+            )
+        else:
+            self.fail("ValueError was not raised.")
+
+
+    def test_returns_approved_reports_for_teacher_month(self):
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        report = SessionReport.objects.create(
+            session=session,
+            status=SessionReport.Status.APPROVED,
+            lesson_summary="Test lesson",
+            present_count=10,
+            absent_count=0,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        reports = get_approved_reports_for_teacher_month(
+            self.teacher,
+            2026,
+            9,
+        )
+
+        self.assertEqual(reports.count(), 1)
+        self.assertEqual(reports.first(), report)
