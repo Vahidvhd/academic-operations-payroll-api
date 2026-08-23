@@ -849,3 +849,57 @@ class CourseSessionModelTests(TestCase):
             self.assertIn("conducted_by", error.message_dict)
         else:
             self.fail("ValidationError was not raised.")
+
+
+    def test_get_effective_teacher_returns_conducted_by(self):
+        substitute_teacher = User.objects.create_user(
+            username="substitute_teacher_effective",
+            password="testpass123",
+            role=User.Role.TEACHER,
+        )
+
+        session = CourseSession(
+            course_class=self.course_class,
+            conducted_by=substitute_teacher,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        effective_teacher = session.get_effective_teacher()
+
+        self.assertEqual(
+            effective_teacher,
+            substitute_teacher,
+        )
+
+
+    def test_get_effective_teacher_returns_assignment_teacher(self):
+        teacher = User.objects.create_user(
+            username="assigned_teacher_effective",
+            password="testpass123",
+            role=User.Role.TEACHER,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=teacher,
+            course_class=self.course_class,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+        )
+
+        session = CourseSession(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        effective_teacher = session.get_effective_teacher()
+
+        self.assertEqual(
+            effective_teacher,
+            teacher,
+        )

@@ -13,18 +13,28 @@ class SessionReportFilter(filters.FilterSet):
 
     def filter_teacher(self, queryset, name, value):
         return queryset.filter(
-            Q(
-                session__course_class__teacher_assignments__end_date__isnull=True
-            )
-            | Q(
-                session__session_datetime__date__lte=F(
-                    "session__course_class__teacher_assignments__end_date"
+            Q(session__conducted_by_id=value)
+            | (
+                Q(session__conducted_by__isnull=True)
+                & Q(
+                    session__course_class__teacher_assignments__teacher_id=value
                 )
-            ),
-            session__course_class__teacher_assignments__teacher_id=value,
-            session__session_datetime__date__gte=F(
-                "session__course_class__teacher_assignments__start_date"
-            ),
+                & Q(
+                    session__session_datetime__date__gte=F(
+                        "session__course_class__teacher_assignments__start_date"
+                    )
+                )
+                & (
+                    Q(
+                        session__course_class__teacher_assignments__end_date__isnull=True
+                    )
+                    | Q(
+                        session__session_datetime__date__lte=F(
+                            "session__course_class__teacher_assignments__end_date"
+                        )
+                    )
+                )
+            )
         ).distinct()
     
     class Meta:

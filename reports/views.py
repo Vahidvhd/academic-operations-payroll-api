@@ -57,18 +57,29 @@ class SessionReportViewSet(viewsets.ModelViewSet):
 
         if self.request.user.role == "teacher":
             return queryset.filter(
-                Q(
-                    session__course_class__teacher_assignments__end_date__isnull=True
-                )
-                | Q(
-                    session__session_datetime__date__lte=F(
-                        "session__course_class__teacher_assignments__end_date"
+                Q(session__conducted_by=self.request.user)
+                | (
+                    Q(session__conducted_by__isnull=True)
+                    & Q(
+                        session__course_class__teacher_assignments__teacher=
+                        self.request.user
                     )
-                ),
-                session__course_class__teacher_assignments__teacher=self.request.user,
-                session__session_datetime__date__gte=F(
-                    "session__course_class__teacher_assignments__start_date"
-                ),
+                    & Q(
+                        session__session_datetime__date__gte=F(
+                            "session__course_class__teacher_assignments__start_date"
+                        )
+                    )
+                    & (
+                        Q(
+                            session__course_class__teacher_assignments__end_date__isnull=True
+                        )
+                        | Q(
+                            session__session_datetime__date__lte=F(
+                                "session__course_class__teacher_assignments__end_date"
+                            )
+                        )
+                    )
+                )
             ).distinct()
 
         return queryset

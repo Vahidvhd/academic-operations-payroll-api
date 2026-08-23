@@ -101,16 +101,28 @@ class CourseSessionViewSet(viewsets.ModelViewSet):
 
         if self.request.user.role == "teacher":
             return queryset.filter(
-                Q(course_class__teacher_assignments__end_date__isnull=True)
-                | Q(
-                    session_datetime__date__lte=F(
-                        "course_class__teacher_assignments__end_date"
+                Q(conducted_by=self.request.user)
+                | (
+                    Q(conducted_by__isnull=True)
+                    & Q(
+                        course_class__teacher_assignments__teacher=self.request.user
                     )
-                ),
-                course_class__teacher_assignments__teacher=self.request.user,
-                session_datetime__date__gte=F(
-                    "course_class__teacher_assignments__start_date"
-                ),
+                    & Q(
+                        session_datetime__date__gte=F(
+                            "course_class__teacher_assignments__start_date"
+                        )
+                    )
+                    & (
+                        Q(
+                            course_class__teacher_assignments__end_date__isnull=True
+                        )
+                        | Q(
+                            session_datetime__date__lte=F(
+                                "course_class__teacher_assignments__end_date"
+                            )
+                        )
+                    )
+                )
             ).distinct()
 
         return queryset

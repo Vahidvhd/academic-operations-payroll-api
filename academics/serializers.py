@@ -200,6 +200,7 @@ class CourseSessionSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "course_class",
+            "conducted_by",
             "session_datetime",
             "session_number",
             "created_at",
@@ -216,6 +217,10 @@ class CourseSessionSerializer(serializers.ModelSerializer):
                     "course_class",
                     self.instance.course_class,
                 ),
+                conducted_by=attrs.get(
+                    "conducted_by",
+                    self.instance.conducted_by,
+                ),
                 session_datetime=attrs.get(
                     "session_datetime",
                     self.instance.session_datetime,
@@ -228,6 +233,7 @@ class CourseSessionSerializer(serializers.ModelSerializer):
         else:
             session = CourseSession(
                 course_class=attrs.get("course_class"),
+                conducted_by=attrs.get("conducted_by"),
                 session_datetime=attrs.get("session_datetime"),
                 session_number=attrs.get("session_number"),
             )

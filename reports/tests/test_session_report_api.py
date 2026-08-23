@@ -2399,3 +2399,183 @@ class SessionReportAPITests(APITestCase):
             report.status,
             SessionReport.Status.PENDING,
         )
+
+
+    def test_substitute_teacher_can_create_report_for_conducted_session(self):
+        substitute_teacher = User.objects.create_user(
+            username="substitute_teacher",
+            first_name="Substitute",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07333333333",
+            emergency_phone_number="07444444444",
+        )
+
+        self.session.conducted_by = substitute_teacher
+        self.session.save()
+
+        self.client.force_authenticate(user=substitute_teacher)
+
+        data = {
+            "session": self.session.id,
+            "lesson_summary": "Python basics",
+            "present_count": 10,
+            "absent_count": 2,
+        }
+
+        response = self.client.post(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(SessionReport.objects.count(), 1)
+
+
+    def test_assigned_teacher_cannot_create_report_when_session_has_substitute(self):
+        substitute_teacher = User.objects.create_user(
+            username="substitute_teacher_2",
+            first_name="Substitute",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07555555555",
+            emergency_phone_number="07666666666",
+        )
+
+        self.session.conducted_by = substitute_teacher
+        self.session.save()
+
+        self.client.force_authenticate(user=self.teacher)
+
+        data = {
+            "session": self.session.id,
+            "lesson_summary": "Python basics",
+            "present_count": 10,
+            "absent_count": 2,
+        }
+
+        response = self.client.post(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(SessionReport.objects.count(), 0)
+
+
+    def test_substitute_teacher_can_view_report_for_conducted_session(self):
+        substitute_teacher = User.objects.create_user(
+            username="substitute_report_view",
+            role=User.Role.TEACHER,
+            phone_number="07333333333",
+            emergency_phone_number="07444444444",
+        )
+
+        self.session.conducted_by = substitute_teacher
+        self.session.save()
+
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=substitute_teacher)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], report.id)
+
+
+    def test_assigned_teacher_cannot_view_report_when_session_has_substitute(self):
+        substitute_teacher = User.objects.create_user(
+            username="substitute_hidden_report",
+            role=User.Role.TEACHER,
+            phone_number="07555555555",
+            emergency_phone_number="07666666666",
+        )
+
+        self.session.conducted_by = substitute_teacher
+        self.session.save()
+
+        SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.teacher)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+
+
+    def test_education_officer_can_filter_reports_by_substitute_teacher(self):
+        substitute_teacher = User.objects.create_user(
+            username="substitute_filter_teacher",
+            role=User.Role.TEACHER,
+            phone_number="07777777777",
+            emergency_phone_number="07888888888",
+        )
+
+        self.session.conducted_by = substitute_teacher
+        self.session.save()
+
+        report = SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"teacher": substitute_teacher.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], report.id)
+
+
+    def test_filter_by_assigned_teacher_excludes_substitute_report(self):
+        substitute_teacher = User.objects.create_user(
+            username="substitute_filter_hidden",
+            role=User.Role.TEACHER,
+            phone_number="07999999999",
+            emergency_phone_number="07000000000",
+        )
+
+        self.session.conducted_by = substitute_teacher
+        self.session.save()
+
+        SessionReport.objects.create(
+            session=self.session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.get(
+            self.url,
+            {"teacher": self.teacher.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
