@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 
 from academics.models import CourseClass, CourseSession, School, Term
+from payroll.models import TeacherTermWage
 from payroll.services import (
     apply_summer_multiplier,
     calculate_late_penalty,
@@ -11,6 +12,7 @@ from payroll.services import (
     calculate_session_base_amount,
     get_approved_reports_for_teacher_month,
     get_teacher_sessions_for_month,
+    get_teacher_term_wage,
 )
 from reports.models import SessionReport
 
@@ -280,3 +282,56 @@ class GetTeacherSessionsForMonthTests(TestCase):
 
         self.assertEqual(reports.count(), 1)
         self.assertEqual(reports.first(), report)
+
+
+class GetTeacherTermWageTests(TestCase):
+    def setUp(self):
+        self.teacher = User.objects.create_user(
+            username="wage_teacher",
+            role=User.Role.TEACHER,
+        )
+
+        self.finance_officer = User.objects.create_user(
+            username="finance_officer",
+            role=User.Role.FINANCE_OFFICER,
+        )
+
+        self.term = Term.objects.create(
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            term_type=Term.TermType.REGULAR,
+        )
+
+
+    def test_returns_teacher_wage_for_term(self):
+        wage = TeacherTermWage.objects.create(
+            teacher=self.teacher,
+            term=self.term,
+            set_by=self.finance_officer,
+            base_wage_rate=Decimal("200.00"),
+        )
+
+        result = get_teacher_term_wage(
+            self.teacher,
+            self.term,
+        )
+
+        self.assertEqual(result, wage)
+
+
+    def test_raises_error_when_teacher_wage_is_missing(self):
+        try:
+            get_teacher_term_wage(
+                self.teacher,
+                self.term,
+            )
+        except ValueError as error:
+            self.assertEqual(
+                str(error),
+                (
+                    f"Base wage is not set for teacher "
+                    f"{self.teacher.id} and term {self.term.id}."
+                ),
+            )
+        else:
+            self.fail("ValueError was not raised.")

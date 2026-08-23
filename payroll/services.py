@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from academics.models import CourseSession
 from academics.services import filter_sessions_for_teacher
+from payroll.models import TeacherTermWage
 from reports.models import SessionReport
 
 
@@ -92,3 +93,15 @@ def get_approved_reports_for_teacher_month(teacher, year, month):
         )
 
     return reports
+
+
+def get_teacher_term_wage(teacher, term):
+    try:
+        return TeacherTermWage.objects.get(
+            teacher=teacher,
+            term=term,
+        )
+    except TeacherTermWage.DoesNotExist:
+        raise ValueError(
+            f"Base wage is not set for teacher {teacher.id} and term {term.id}."
+        )
