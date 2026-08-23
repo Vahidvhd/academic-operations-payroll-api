@@ -166,6 +166,13 @@ class CourseSession(TimeStampedModel, SoftDeleteModel):
         on_delete=models.PROTECT,
         related_name="sessions",
     )
+    conducted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="conducted_sessions",
+        null=True,
+        blank=True,
+    )
     session_datetime = models.DateTimeField()
     session_number = models.PositiveIntegerField(validators=[MinValueValidator(1)])
 
@@ -179,6 +186,9 @@ class CourseSession(TimeStampedModel, SoftDeleteModel):
         ]
 
     def clean(self):
+        if self.conducted_by_id and self.conducted_by.role != "teacher":
+            raise ValidationError({"conducted_by": "Selected user must have the teacher role."})
+        
         if not self.course_class_id or not self.session_datetime:
             return
 

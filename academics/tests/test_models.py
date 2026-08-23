@@ -799,3 +799,53 @@ class CourseSessionModelTests(TestCase):
         session = CourseSession()
 
         self.assertIsNone(session.clean())
+
+
+    def test_conducted_by_can_be_teacher(self):
+        substitute_teacher = User.objects.create_user(
+            username="substitute_teacher",
+            password="testpass123",
+            first_name="Substitute",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+        )
+
+        session = CourseSession(
+            course_class=self.course_class,
+            conducted_by=substitute_teacher,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        session.full_clean()
+
+        self.assertEqual(
+            session.conducted_by,
+            substitute_teacher,
+        )
+
+
+    def test_conducted_by_must_have_teacher_role(self):
+        education_officer = User.objects.create_user(
+            username="education_officer",
+            password="testpass123",
+            role=User.Role.EDUCATION_OFFICER,
+        )
+
+        session = CourseSession(
+            course_class=self.course_class,
+            conducted_by=education_officer,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 3, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        try:
+            session.full_clean()
+        except ValidationError as error:
+            self.assertIn("conducted_by", error.message_dict)
+        else:
+            self.fail("ValidationError was not raised.")
