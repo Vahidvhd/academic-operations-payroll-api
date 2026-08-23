@@ -1,11 +1,13 @@
 from django.db import transaction
-from django.db.models import Count, F, Q
+from django.db.models import Count, Q
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
+from academics.models import CourseSession
+from academics.services import filter_sessions_for_teacher
 from reports.filters import SessionReportFilter
 from reports.models import ReportStatusHistory, SessionReport
 from reports.serializers import (
@@ -56,31 +58,14 @@ class SessionReportViewSet(viewsets.ModelViewSet):
         queryset = SessionReport.objects.all()
 
         if self.request.user.role == "teacher":
+            teacher_sessions = filter_sessions_for_teacher(
+                CourseSession.objects.all(),
+                self.request.user.id,
+            )
+
             return queryset.filter(
-                Q(session__conducted_by=self.request.user)
-                | (
-                    Q(session__conducted_by__isnull=True)
-                    & Q(
-                        session__course_class__teacher_assignments__teacher=
-                        self.request.user
-                    )
-                    & Q(
-                        session__session_datetime__date__gte=F(
-                            "session__course_class__teacher_assignments__start_date"
-                        )
-                    )
-                    & (
-                        Q(
-                            session__course_class__teacher_assignments__end_date__isnull=True
-                        )
-                        | Q(
-                            session__session_datetime__date__lte=F(
-                                "session__course_class__teacher_assignments__end_date"
-                            )
-                        )
-                    )
-                )
-            ).distinct()
+                session__in=teacher_sessions
+            )
 
         return queryset
 

@@ -1,4 +1,3 @@
-from django.db.models import F, Q
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
@@ -21,6 +20,7 @@ from .serializers import (
     TeacherClassAssignmentSerializer,
     TermSerializer,
 )
+from .services import filter_sessions_for_teacher
 
 
 class SchoolViewSet(viewsets.ModelViewSet):
@@ -100,30 +100,10 @@ class CourseSessionViewSet(viewsets.ModelViewSet):
         queryset = CourseSession.objects.filter(is_deleted=False)
 
         if self.request.user.role == "teacher":
-            return queryset.filter(
-                Q(conducted_by=self.request.user)
-                | (
-                    Q(conducted_by__isnull=True)
-                    & Q(
-                        course_class__teacher_assignments__teacher=self.request.user
-                    )
-                    & Q(
-                        session_datetime__date__gte=F(
-                            "course_class__teacher_assignments__start_date"
-                        )
-                    )
-                    & (
-                        Q(
-                            course_class__teacher_assignments__end_date__isnull=True
-                        )
-                        | Q(
-                            session_datetime__date__lte=F(
-                                "course_class__teacher_assignments__end_date"
-                            )
-                        )
-                    )
-                )
-            ).distinct()
+            return filter_sessions_for_teacher(
+                queryset,
+                self.request.user.id,
+            )
 
         return queryset
 
