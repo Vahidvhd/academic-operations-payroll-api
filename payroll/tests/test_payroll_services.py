@@ -1245,3 +1245,147 @@ class CalculateAllTeacherSalariesForMonthTests(TestCase):
             self.fail("ValueError was not raised.")
 
         self.assertEqual(MonthlySalary.objects.count(), 0)
+
+
+class SolvedPayrollExampleTests(TestCase):
+    def setUp(self):
+        self.teacher = User.objects.create_user(
+            username="solved_example_teacher",
+            role=User.Role.TEACHER,
+        )
+
+        self.finance_officer = User.objects.create_user(
+            username="solved_example_finance",
+            role=User.Role.FINANCE_OFFICER,
+        )
+
+        self.school = School.objects.create(
+            name="Solved Example School",
+            address="London",
+        )
+
+        self.term = Term.objects.create(
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            term_type=Term.TermType.REGULAR,
+        )
+
+        self.class_90 = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="90 Minute Class",
+            class_code="EX90",
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            session_duration=90,
+        )
+
+        self.class_60 = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="60 Minute Class",
+            class_code="EX60",
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            session_duration=60,
+        )
+
+        self.class_120 = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="120 Minute Class",
+            class_code="EX120",
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            session_duration=120,
+        )
+
+        TeacherTermWage.objects.create(
+            teacher=self.teacher,
+            term=self.term,
+            set_by=self.finance_officer,
+            base_wage_rate=Decimal("200000.00"),
+        )
+
+
+    def test_calculates_solved_example_total(self):
+        for number in range(1, 11):
+            session = CourseSession.objects.create(
+                course_class=self.class_90,
+                conducted_by=self.teacher,
+                session_datetime=f"2026-09-{number:02d}T10:00:00Z",
+                session_number=number,
+            )
+
+            SessionReport.objects.create(
+                session=session,
+                status=SessionReport.Status.APPROVED,
+                lesson_summary="90 minute lesson",
+                present_count=10,
+                absent_count=0,
+                late_hours=0,
+                submitted_at=f"2026-09-{number:02d}T12:00:00Z",
+            )
+
+        for number in range(1, 3):
+            session = CourseSession.objects.create(
+                course_class=self.class_60,
+                conducted_by=self.teacher,
+                session_datetime=f"2026-09-{number + 10:02d}T10:00:00Z",
+                session_number=number,
+            )
+
+            SessionReport.objects.create(
+                session=session,
+                status=SessionReport.Status.APPROVED,
+                lesson_summary="60 minute lesson",
+                present_count=10,
+                absent_count=0,
+                late_hours=0,
+                submitted_at=f"2026-09-{number + 10:02d}T12:00:00Z",
+            )
+
+        session = CourseSession.objects.create(
+            course_class=self.class_120,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-13T10:00:00Z",
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            status=SessionReport.Status.APPROVED,
+            lesson_summary="120 minute lesson",
+            present_count=10,
+            absent_count=0,
+            late_hours=0,
+            submitted_at="2026-09-13T12:30:00Z",
+        )
+
+        late_session = CourseSession.objects.create(
+            course_class=self.class_90,
+            conducted_by=self.teacher,
+            session_datetime="2026-09-14T10:00:00Z",
+            session_number=11,
+        )
+
+        SessionReport.objects.create(
+            session=late_session,
+            status=SessionReport.Status.APPROVED,
+            lesson_summary="Late lesson",
+            present_count=10,
+            absent_count=0,
+            late_hours=100,
+            submitted_at="2026-09-14T12:00:00Z",
+        )
+
+        salary = calculate_teacher_monthly_salary(
+            self.teacher,
+            2026,
+            9,
+            self.finance_officer,
+        )
+
+        self.assertEqual(salary.gross_amount, Decimal("2740000.00"))
+        self.assertEqual(salary.total_penalty_amount, Decimal("200000.00"))
+        self.assertEqual(salary.net_amount, Decimal("2540000.00"))
