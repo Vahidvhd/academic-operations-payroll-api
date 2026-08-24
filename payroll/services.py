@@ -1,8 +1,10 @@
 from decimal import Decimal
 
+from django.db import transaction
+
 from academics.models import CourseSession, Term
 from academics.services import filter_sessions_for_teacher
-from payroll.models import MonthlySalary, TeacherTermWage
+from payroll.models import MonthlySalary, MonthlySalaryItem, TeacherTermWage
 from reports.models import SessionReport
 
 
@@ -157,16 +159,12 @@ def calculate_teacher_month_totals(teacher, year, month):
         net_amount,
     )
 
-
 def calculate_teacher_monthly_salary(teacher, year, month, calculated_by):
     existing_salary = MonthlySalary.objects.filter(
         teacher=teacher,
         year=year,
         month=month,
     ).first()
-
-    if existing_salary:
-        return existing_salary
 
     sessions = get_teacher_sessions_for_month(
         teacher,
@@ -176,6 +174,12 @@ def calculate_teacher_monthly_salary(teacher, year, month, calculated_by):
 
     if not sessions.exists():
         return None
+
+    reports = get_approved_reports_for_teacher_month(
+        teacher,
+        year,
+        month,
+    )
 
     (
         gross_amount,
@@ -187,12 +191,45 @@ def calculate_teacher_monthly_salary(teacher, year, month, calculated_by):
         month,
     )
 
-    return MonthlySalary.objects.create(
-        teacher=teacher,
-        year=year,
-        month=month,
-        calculated_by=calculated_by,
-        gross_amount=gross_amount,
-        total_penalty_amount=total_penalty_amount,
-        net_amount=net_amount,
-    )
+    with transaction.atomic():
+        if existing_salary:
+            salary = existing_salary
+            salary.calculated_by = calculated_by
+            salary.gross_amount = gross_amount
+            salary.total_penalty_amount = total_penalty_amount
+            salary.net_amount = net_amount
+            salary.save()
+        else:
+            salary = MonthlySalary.objects.create(
+                teacher=teacher,
+                year=year,
+                month=month,
+                calculated_by=calculated_by,
+                gross_amount=gross_amount,
+                total_penalty_amount=total_penalty_amount,
+                net_amount=net_amount,
+            )
+
+        MonthlySalaryItem.objects.filter(
+            monthly_salary=salary,
+        ).delete()
+
+        for report in reports:
+            (
+                amount_before_penalty,
+                penalty_amount,
+                amount_after_penalty,
+            ) = calculate_report_amount(
+                report,
+                teacher,
+            )
+
+            MonthlySalaryItem.objects.create(
+                monthly_salary=salary,
+                session_report=report,
+                amount_before_penalty=amount_before_penalty,
+                penalty_amount=penalty_amount,
+                amount_after_penalty=amount_after_penalty,
+            )
+
+    return salary
