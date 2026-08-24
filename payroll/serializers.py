@@ -2,8 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from academics.models import Term
-from payroll.models import TeacherTermWage
-
+from payroll.models import MonthlySalary, TeacherTermWage
 
 User = get_user_model()
 
@@ -35,3 +34,26 @@ class TeacherTermWageSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+
+class PayrollCalculationSerializer(serializers.Serializer):
+    year = serializers.IntegerField(min_value=1)
+    month = serializers.IntegerField(min_value=1, max_value=12)
+
+
+class MonthlySalarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MonthlySalary
+        fields = [
+            "id",
+            "teacher",
+            "year",
+            "month",
+            "gross_amount",
+            "total_penalty_amount",
+            "net_amount",
+            "calculated_by",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields

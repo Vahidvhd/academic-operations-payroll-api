@@ -1,11 +1,13 @@
 from datetime import date
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from academics.models import Term
-from payroll.serializers import TeacherTermWageSerializer
-
+from payroll.serializers import (
+    PayrollCalculationSerializer,
+    TeacherTermWageSerializer,
+)
 
 User = get_user_model()
 
@@ -106,3 +108,25 @@ class TeacherTermWageSerializerTests(TestCase):
             "set_by",
             serializer.validated_data,
         )
+
+
+class PayrollCalculationSerializerTests(SimpleTestCase):
+    def test_valid_year_and_month(self):
+        serializer = PayrollCalculationSerializer(
+            data={
+                "year": 2026,
+                "month": 9,
+            }
+        )
+
+        self.assertTrue(serializer.is_valid())
+
+    def test_invalid_month(self):
+        serializer = PayrollCalculationSerializer(
+            data={
+                "year": 2026,
+                "month": 13,
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())

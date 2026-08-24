@@ -59,3 +59,19 @@ class IsSuperUser(BasePermission):
             request.user.is_authenticated
             and request.user.is_superuser
         )
+
+
+class IsFinanceOfficerOrTeacher(BasePermission):
+    message = "User does not have permission."
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+
+        if request.user.role == User.Role.FINANCE_OFFICER:
+            return True
+
+        return (
+            request.user.role == User.Role.TEACHER
+            and request.method in SAFE_METHODS
+        )
