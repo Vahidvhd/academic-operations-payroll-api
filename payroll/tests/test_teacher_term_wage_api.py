@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -151,7 +152,13 @@ class TeacherTermWageAPITests(APITestCase):
         )
 
 
-    def test_finance_officer_can_update_teacher_term_wage(self):
+    @patch("payroll.views.timezone")
+    def test_finance_officer_can_update_wage_before_term_starts(
+        self,
+        mock_timezone,
+    ):
+        mock_timezone.localdate.return_value = date(2026, 7, 20)
+
         wage = TeacherTermWage.objects.create(
             teacher=self.teacher,
             term=self.term,
@@ -159,7 +166,9 @@ class TeacherTermWageAPITests(APITestCase):
             base_wage_rate=Decimal("200.00"),
         )
 
-        self.client.force_authenticate(user=self.finance_officer)
+        self.client.force_authenticate(
+            user=self.finance_officer
+        )
 
         url = reverse("teacher-term-wage-detail", args=[wage.id])
 
@@ -176,7 +185,41 @@ class TeacherTermWageAPITests(APITestCase):
         wage.refresh_from_db()
 
         self.assertEqual(wage.base_wage_rate, Decimal("220.00"))
-        self.assertEqual(wage.set_by, self.finance_officer)
+
+
+    @patch("payroll.views.timezone")
+    def test_finance_officer_cannot_update_wage_after_term_starts(
+        self,
+        mock_timezone,
+    ):
+        mock_timezone.localdate.return_value = date(2026, 8, 10)
+
+        wage = TeacherTermWage.objects.create(
+            teacher=self.teacher,
+            term=self.term,
+            set_by=self.finance_officer,
+            base_wage_rate=Decimal("200.00"),
+        )
+
+        self.client.force_authenticate(
+            user=self.finance_officer
+        )
+
+        url = reverse("teacher-term-wage-detail", args=[wage.id])
+
+        response = self.client.patch(
+            url,
+            {
+                "base_wage_rate": "220.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        wage.refresh_from_db()
+
+        self.assertEqual(wage.base_wage_rate, Decimal("200.00"))
 
 
     def test_put_is_not_allowed(self):

@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -32,6 +33,9 @@ class TeacherTermWageViewSet(viewsets.ModelViewSet):
         serializer.save(set_by=self.request.user)
 
     def perform_update(self, serializer):
+        if serializer.instance.term.start_date <= timezone.localdate():
+            raise ValidationError("Base wage cannot be changed after the term has started.")
+
         serializer.save(set_by=self.request.user)
 
 
