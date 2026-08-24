@@ -236,3 +236,55 @@ class MonthlySalaryAPITests(APITestCase):
             response.data[0]["id"],
             september_salary.id,
         )
+
+
+    def test_education_officer_cannot_list_monthly_salaries(self):
+        education_officer = User.objects.create_user(
+            username="salary_education",
+            role=User.Role.EDUCATION_OFFICER,
+        )
+
+        self.client.force_authenticate(
+            user=education_officer
+        )
+
+        url = reverse("monthly-salary-list")
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 403)
+
+
+    def test_anonymous_user_cannot_list_monthly_salaries(self):
+        url = reverse("monthly-salary-list")
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 401)
+
+
+    def test_teacher_cannot_retrieve_another_teachers_salary(self):
+        other_teacher = User.objects.create_user(
+            username="other_salary_teacher",
+            role=User.Role.TEACHER,
+        )
+
+        other_salary = MonthlySalary.objects.create(
+            teacher=other_teacher,
+            year=2026,
+            month=9,
+            calculated_by=self.finance_officer,
+            gross_amount=Decimal("300.00"),
+            total_penalty_amount=Decimal("0.00"),
+            net_amount=Decimal("300.00"),
+        )
+
+        self.client.force_authenticate(
+            user=self.teacher
+        )
+
+        url = reverse("monthly-salary-detail", args=[other_salary.id])
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
