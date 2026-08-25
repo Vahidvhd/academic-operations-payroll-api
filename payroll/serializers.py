@@ -41,6 +41,14 @@ class PayrollCalculationSerializer(serializers.Serializer):
     month = serializers.IntegerField(min_value=1, max_value=12)
 
 
+class TeacherPayrollCalculationSerializer(PayrollCalculationSerializer):
+    teacher = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(
+            role=User.Role.TEACHER,
+        )
+    )
+
+    
 class MonthlySalarySerializer(serializers.ModelSerializer):
     class Meta:
         model = MonthlySalary
@@ -57,3 +65,5 @@ class MonthlySalarySerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = fields
+
+

@@ -8,9 +8,14 @@ from payroll.models import MonthlySalary, TeacherTermWage
 from payroll.serializers import (
     MonthlySalarySerializer,
     PayrollCalculationSerializer,
+    TeacherPayrollCalculationSerializer,
     TeacherTermWageSerializer,
 )
-from payroll.services import calculate_all_teacher_salaries_for_month
+from payroll.services import (
+    calculate_all_teacher_salaries_for_month,
+    calculate_teacher_monthly_salary,
+    validate_month_ready_for_payroll,
+)
 from users.permissions import (
     IsFinanceOfficer,
     IsFinanceOfficerOrTeacher,
@@ -76,6 +81,46 @@ class MonthlySalaryViewSet(viewsets.ReadOnlyModelViewSet):
         output_serializer = MonthlySalarySerializer(
             salaries,
             many=True,
+        )
+
+        return Response(output_serializer.data)
+
+
+    @action(detail=False, methods=["post"], url_path="calculate-teacher")
+    def calculate_teacher(self, request):
+        input_serializer = TeacherPayrollCalculationSerializer(
+            data=request.data
+        )
+        input_serializer.is_valid(raise_exception=True)
+
+        teacher = input_serializer.validated_data["teacher"]
+        year = input_serializer.validated_data["year"]
+        month = input_serializer.validated_data["month"]
+
+        try:
+            validate_month_ready_for_payroll(
+                year,
+                month,
+            )
+
+            salary = calculate_teacher_monthly_salary(
+                teacher,
+                year,
+                month,
+                request.user,
+            )
+        except ValueError as error:
+            raise ValidationError(
+                {"detail": str(error)}
+            )
+
+        if salary is None:
+            raise ValidationError(
+                {"detail": "Teacher has no sessions in this month."}
+            )
+
+        output_serializer = MonthlySalarySerializer(
+            salary
         )
 
         return Response(output_serializer.data)
