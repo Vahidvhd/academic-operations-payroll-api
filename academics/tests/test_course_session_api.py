@@ -9,6 +9,7 @@ from academics.models import (
     TeacherClassAssignment,
     Term,
 )
+from reports.models import SessionReport
 
 User = get_user_model()
 
@@ -683,3 +684,86 @@ class CourseSessionAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 0)
+
+
+    def test_cannot_update_course_session_after_report_submitted(self):
+        teacher = User.objects.create_user(
+            username="reported_session_teacher",
+            role=User.Role.TEACHER,
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Test lesson",
+            present_count=10,
+            absent_count=0,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer
+        )
+
+        url = reverse(
+            "course-session-detail",
+            args=[session.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {
+                "session_datetime": "2026-10-10T10:00:00Z",
+                "conducted_by": teacher.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        session.refresh_from_db()
+
+        self.assertIsNone(session.conducted_by)
+        self.assertEqual(
+            session.session_datetime.month,
+            9,
+        )
+
+
+    def test_cannot_soft_delete_course_session_after_report_submitted(self):
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Test lesson",
+            present_count=10,
+            absent_count=0,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer
+        )
+
+        url = reverse(
+            "course-session-detail",
+            args=[session.id],
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 400)
+
+        session.refresh_from_db()
+
+        self.assertFalse(session.is_deleted)
+        self.assertIsNone(session.deleted_at)
