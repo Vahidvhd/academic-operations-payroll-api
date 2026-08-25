@@ -5,7 +5,13 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from academics.models import CourseClass, School, TeacherClassAssignment, Term
+from academics.models import (
+    CourseClass,
+    CourseSession,
+    School,
+    TeacherClassAssignment,
+    Term,
+)
 
 User = get_user_model()
 
@@ -252,6 +258,78 @@ class CourseClassAPITests(APITestCase):
         self.client.force_authenticate(user=self.education_officer)
 
         url = reverse("course-class-detail", args=[course_class.id])
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 204)
+
+        course_class.refresh_from_db()
+
+        self.assertTrue(course_class.is_deleted)
+        self.assertIsNotNone(course_class.deleted_at)
+
+
+    def test_cannot_delete_course_class_with_active_session(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY500",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        CourseSession.objects.create(
+            course_class=course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "course-class-detail",
+            args=[course_class.id],
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 400)
+
+        course_class.refresh_from_db()
+
+        self.assertFalse(course_class.is_deleted)
+
+
+    def test_can_delete_course_class_when_all_sessions_are_soft_deleted(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY501",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        CourseSession.objects.create(
+            course_class=course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+            is_deleted=True,
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "course-class-detail",
+            args=[course_class.id],
+        )
 
         response = self.client.delete(url)
 
