@@ -29,10 +29,14 @@ class SchoolViewSet(viewsets.ModelViewSet):
     permission_classes = [IsEducationOfficer]
 
     def perform_destroy(self, instance):
+        if instance.course_classes.filter(is_deleted=False).exists():
+            raise ValidationError(
+                {"detail": "A school with active classes cannot be deleted."}
+            )
+
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()
-
 
 class TermViewSet(viewsets.ModelViewSet):
     queryset = Term.objects.filter(is_deleted=False)
@@ -41,9 +45,9 @@ class TermViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def perform_destroy(self, instance):
-        if instance.course_classes.exists():
+        if instance.course_classes.filter(is_deleted=False).exists():
             raise ValidationError(
-                {"detail": "A term with classes cannot be deleted."}
+                {"detail": "A term with active classes cannot be deleted."}
             )
 
         instance.is_deleted = True
@@ -79,6 +83,7 @@ class CourseClassViewSet(viewsets.ModelViewSet):
 
         return CourseClassSerializer
 
+
     def perform_destroy(self, instance):
         if instance.has_reported_sessions():
             raise ValidationError(
@@ -95,6 +100,15 @@ class CourseClassViewSet(viewsets.ModelViewSet):
                 {
                     "detail": (
                         "A class with active sessions cannot be deleted."
+                    )
+                }
+            )
+
+        if instance.teacher_assignments.exists():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "A class with teacher assignments cannot be deleted."
                     )
                 }
             )
