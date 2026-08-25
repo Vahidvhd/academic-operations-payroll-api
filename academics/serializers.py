@@ -210,6 +210,15 @@ class CourseSessionSerializer(serializers.ModelSerializer):
 
 
     def validate(self, attrs):
+        if self.instance and self.instance.has_report():
+            raise serializers.ValidationError(
+                {
+                    "detail": (
+                        "Session cannot be changed after a report has been submitted."
+                    )
+                }
+            )
+        
         if self.instance:
             session = CourseSession(
                 pk=self.instance.pk,

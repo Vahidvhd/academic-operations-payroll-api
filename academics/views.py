@@ -108,6 +108,15 @@ class CourseSessionViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_destroy(self, instance):
+        if instance.has_report():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Session cannot be deleted after a report has been submitted."
+                    )
+                }
+            )
+
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()

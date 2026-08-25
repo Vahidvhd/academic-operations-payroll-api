@@ -225,6 +225,11 @@ class CourseSession(TimeStampedModel, SoftDeleteModel):
                     {"session_datetime": "Session cannot overlap with another session."}
                 )
 
+
+    def has_report(self):
+        return hasattr(self, "report")
+
+
     def get_effective_teacher(self):
         if self.conducted_by:
             return self.conducted_by
