@@ -405,7 +405,7 @@ class MonthlySalaryAPITests(APITestCase):
         )
 
 
-    def test_cannot_calculate_teacher_salary_when_month_is_not_ready(self):
+    def test_single_teacher_calculation_ignores_other_teacher_pending_report(self):
         second_teacher = User.objects.create_user(
             username="pending_report_teacher",
             role=User.Role.TEACHER,
@@ -469,8 +469,16 @@ class MonthlySalaryAPITests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            MonthlySalary.objects.count(),
-            0,
+        self.assertEqual(response.status_code, 200)
+
+        self.assertTrue(
+            MonthlySalary.objects.filter(
+                teacher=self.teacher,
+            ).exists()
+        )
+
+        self.assertFalse(
+            MonthlySalary.objects.filter(
+                teacher=second_teacher,
+            ).exists()
         )

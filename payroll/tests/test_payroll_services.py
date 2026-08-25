@@ -18,7 +18,6 @@ from payroll.services import (
     get_teacher_sessions_for_month,
     get_teacher_term_wage,
     get_teachers_for_month,
-    validate_month_ready_for_payroll,
 )
 from reports.models import SessionReport
 
@@ -827,142 +826,6 @@ class CalculateTeacherMonthTotalsTests(TestCase):
         )
 
 
-class ValidateMonthReadyForPayrollTests(TestCase):
-    def setUp(self):
-        self.teacher = User.objects.create_user(
-            username="validation_teacher",
-            role=User.Role.TEACHER,
-        )
-
-        self.school = School.objects.create(
-            name="Validation School",
-            address="London",
-        )
-
-        self.term = Term.objects.create(
-            start_date="2026-09-01",
-            end_date="2026-09-30",
-            term_type=Term.TermType.REGULAR,
-        )
-
-        self.course_class = CourseClass.objects.create(
-            school=self.school,
-            term=self.term,
-            title="Python",
-            class_code="VAL101",
-            start_date="2026-09-01",
-            end_date="2026-09-30",
-            session_duration=90,
-        )
-
-    def test_month_is_not_ready_when_any_report_is_pending(self):
-        approved_session = CourseSession.objects.create(
-            course_class=self.course_class,
-            conducted_by=self.teacher,
-            session_datetime="2026-09-10T10:00:00Z",
-            session_number=1,
-        )
-
-        SessionReport.objects.create(
-            session=approved_session,
-            status=SessionReport.Status.APPROVED,
-            lesson_summary="Approved lesson",
-            present_count=10,
-            absent_count=0,
-            submitted_at="2026-09-10T12:00:00Z",
-        )
-
-        second_teacher = User.objects.create_user(
-            username="second_teacher",
-            role=User.Role.TEACHER,
-        )
-
-        pending_session = CourseSession.objects.create(
-            course_class=self.course_class,
-            conducted_by=second_teacher,
-            session_datetime="2026-09-20T10:00:00Z",
-            session_number=2,
-        )
-
-        SessionReport.objects.create(
-            session=pending_session,
-            status=SessionReport.Status.PENDING,
-            lesson_summary="Pending lesson",
-            present_count=10,
-            absent_count=0,
-            submitted_at="2026-09-20T12:00:00Z",
-        )
-
-        try:
-            validate_month_ready_for_payroll(2026, 9)
-        except ValueError as error:
-            self.assertEqual(
-                str(error),
-                "All reports must be approved before payroll calculation.",
-            )
-        else:
-            self.fail("ValueError was not raised.")
-
-
-    def test_month_is_not_ready_when_session_has_no_report(self):
-        CourseSession.objects.create(
-            course_class=self.course_class,
-            conducted_by=self.teacher,
-            session_datetime="2026-09-10T10:00:00Z",
-            session_number=1,
-        )
-
-        try:
-            validate_month_ready_for_payroll(2026, 9)
-        except ValueError as error:
-            self.assertEqual(
-                str(error),
-                "All sessions must have a report before payroll calculation.",
-            )
-        else:
-            self.fail("ValueError was not raised.")
-
-
-    def test_month_is_ready_when_all_reports_are_approved(self):
-        session1 = CourseSession.objects.create(
-            course_class=self.course_class,
-            conducted_by=self.teacher,
-            session_datetime="2026-09-10T10:00:00Z",
-            session_number=1,
-        )
-
-        session2 = CourseSession.objects.create(
-            course_class=self.course_class,
-            conducted_by=self.teacher,
-            session_datetime="2026-09-20T10:00:00Z",
-            session_number=2,
-        )
-
-        report1 = SessionReport.objects.create(
-            session=session1,
-            status=SessionReport.Status.APPROVED,
-            lesson_summary="Lesson 1",
-            present_count=10,
-            absent_count=0,
-            submitted_at="2026-09-10T12:00:00Z",
-        )
-
-        report2 = SessionReport.objects.create(
-            session=session2,
-            status=SessionReport.Status.APPROVED,
-            lesson_summary="Lesson 2",
-            present_count=10,
-            absent_count=0,
-            submitted_at="2026-09-20T12:00:00Z",
-        )
-
-        reports = validate_month_ready_for_payroll(2026, 9)
-
-        self.assertEqual(reports.count(), 2)
-        self.assertIn(report1, reports)
-        self.assertIn(report2, reports)
-
-
 class GetTeachersForMonthTests(TestCase):
     def setUp(self):
         self.teacher = User.objects.create_user(
@@ -1142,7 +1005,7 @@ class CalculateAllTeacherSalariesForMonthTests(TestCase):
         )
 
 
-    def test_does_not_calculate_any_salary_when_month_is_not_ready(self):
+    def test_bulk_skips_teacher_with_unapproved_report(self):
         session1 = CourseSession.objects.create(
             course_class=self.course_class,
             conducted_by=self.teacher1,
@@ -1175,21 +1038,27 @@ class CalculateAllTeacherSalariesForMonthTests(TestCase):
             submitted_at="2026-09-20T12:00:00Z",
         )
 
-        try:
-            calculate_all_teacher_salaries_for_month(
-                2026,
-                9,
-                self.finance_officer,
-            )
-        except ValueError as error:
-            self.assertEqual(
-                str(error),
-                "All reports must be approved before payroll calculation.",
-            )
-        else:
-            self.fail("ValueError was not raised.")
+        salaries = calculate_all_teacher_salaries_for_month(
+            2026,
+            9,
+            self.finance_officer,
+        )
 
-        self.assertEqual(MonthlySalary.objects.count(), 0)
+        self.assertEqual(len(salaries), 1)
+        self.assertEqual(MonthlySalary.objects.count(), 1)
+
+        salary = MonthlySalary.objects.get()
+
+        self.assertEqual(
+            salary.teacher,
+            self.teacher1,
+        )
+
+        self.assertFalse(
+            MonthlySalary.objects.filter(
+                teacher=self.teacher2,
+            ).exists()
+        )
 
 
     def test_bulk_fails_when_teacher_wage_is_missing(self):
