@@ -255,52 +255,21 @@ def get_teachers_for_month(year, month):
     return User.objects.filter(id__in=teacher_ids)
 
 
-def validate_month_ready_for_payroll(year, month):
-    sessions = CourseSession.objects.filter(
-        is_deleted=False,
-        session_datetime__year=year,
-        session_datetime__month=month,
-    )
-
-    reports = SessionReport.objects.filter(session__in=sessions)
-
-    if reports.count() != sessions.count():
-        raise ValueError("All sessions must have a report before payroll calculation.")
-
-    if reports.exclude(status=SessionReport.Status.APPROVED).exists():
-        raise ValueError("All reports must be approved before payroll calculation.")
-
-    return reports
-
-
-def validate_month_teacher_wages(year, month):
-    teachers = get_teachers_for_month(
-        year,
-        month,
-    )
-
-    for teacher in teachers:
-        sessions = get_teacher_sessions_for_month(
-            teacher,
-            year,
-            month,
-        )
-
-        for session in sessions:
-            get_teacher_term_wage(
-                teacher,
-                session.course_class.term,
-            )
-
-
 def calculate_all_teacher_salaries_for_month(year, month, calculated_by):
-    validate_month_ready_for_payroll(year, month)
-    validate_month_teacher_wages(year, month)
     teachers = get_teachers_for_month(year, month)
     salaries = []
 
     with transaction.atomic():
         for teacher in teachers:
+            try:
+                get_approved_reports_for_teacher_month(
+                    teacher,
+                    year,
+                    month,
+                )
+            except ValueError:
+                continue
+
             salary = calculate_teacher_monthly_salary(
                 teacher,
                 year,

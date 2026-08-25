@@ -14,7 +14,6 @@ from payroll.serializers import (
 from payroll.services import (
     calculate_all_teacher_salaries_for_month,
     calculate_teacher_monthly_salary,
-    validate_month_ready_for_payroll,
 )
 from users.permissions import (
     IsFinanceOfficer,
@@ -98,11 +97,6 @@ class MonthlySalaryViewSet(viewsets.ReadOnlyModelViewSet):
         month = input_serializer.validated_data["month"]
 
         try:
-            validate_month_ready_for_payroll(
-                year,
-                month,
-            )
-
             salary = calculate_teacher_monthly_salary(
                 teacher,
                 year,
