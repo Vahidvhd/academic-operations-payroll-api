@@ -304,6 +304,42 @@ class CourseClassAPITests(APITestCase):
         self.assertFalse(course_class.is_deleted)
 
 
+    def test_cannot_delete_course_class_with_teacher_assignment(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY502",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=course_class,
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "course-class-detail",
+            args=[course_class.id],
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 400)
+
+        course_class.refresh_from_db()
+
+        self.assertFalse(course_class.is_deleted)
+
+
     def test_can_delete_course_class_when_all_sessions_are_soft_deleted(self):
         course_class = CourseClass.objects.create(
             school=self.school,

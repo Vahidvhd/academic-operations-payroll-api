@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from academics.models import School
+from academics.models import CourseClass, School, Term
 
 User = get_user_model()
 
@@ -135,6 +135,46 @@ class SchoolAPITests(APITestCase):
 
         self.assertEqual(list_response.status_code, 200)
         self.assertNotContains(list_response, "Delete School")
+
+
+    def test_cannot_delete_school_with_active_course_class(self):
+        school = School.objects.create(
+            name="School With Class",
+            address="London",
+        )
+
+        term = Term.objects.create(
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            term_type=Term.TermType.REGULAR,
+        )
+
+        CourseClass.objects.create(
+            school=school,
+            term=term,
+            title="Python",
+            class_code="PY500",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "school-detail",
+            args=[school.id],
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 400)
+
+        school.refresh_from_db()
+
+        self.assertFalse(school.is_deleted)
 
 
     def test_soft_deleted_school_detail_returns_404(self):
