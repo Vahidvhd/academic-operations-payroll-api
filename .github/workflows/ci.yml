@@ -11,6 +11,8 @@ env:
   POSTGRES_DB: instructor_payroll
   POSTGRES_USER: instructor_payroll_user
   POSTGRES_PASSWORD: test_password
+  SECRET_KEY: ci-test-secret-key
+  DEBUG: "False"
 
 jobs:
   test:
