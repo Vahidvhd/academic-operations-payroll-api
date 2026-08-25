@@ -87,6 +87,11 @@ class CourseClass(TimeStampedModel, SoftDeleteModel):
             )
         ]
 
+    def has_reported_sessions(self):
+        return self.sessions.filter(
+            report__isnull=False,
+        ).exists()
+
     def clean(self):
         super().clean()
 
@@ -114,6 +119,22 @@ class TeacherClassAssignment(TimeStampedModel):
         related_name="teacher_assignments")
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
+
+
+    def has_reported_sessions(self):
+        sessions = self.course_class.sessions.filter(
+            conducted_by__isnull=True,
+            session_datetime__date__gte=self.start_date,
+            report__isnull=False,
+        )
+
+        if self.end_date:
+            sessions = sessions.filter(
+                session_datetime__date__lte=self.end_date,
+            )
+
+        return sessions.exists()
+
 
     def clean(self):
         super().clean()

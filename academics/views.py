@@ -80,6 +80,25 @@ class CourseClassViewSet(viewsets.ModelViewSet):
         return CourseClassSerializer
 
     def perform_destroy(self, instance):
+        if instance.has_reported_sessions():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Class cannot be deleted after a related report "
+                        "has been submitted."
+                    )
+                }
+            )
+
+        if instance.sessions.filter(is_deleted=False).exists():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "A class with active sessions cannot be deleted."
+                    )
+                }
+            )
+
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()
@@ -89,6 +108,19 @@ class TeacherClassAssignmentViewSet(viewsets.ModelViewSet):
     queryset = TeacherClassAssignment.objects.all()
     serializer_class = TeacherClassAssignmentSerializer
     permission_classes = [IsEducationOfficer]
+
+    def perform_destroy(self, instance):
+        if instance.has_reported_sessions():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Assignment cannot be deleted after a related report "
+                        "has been submitted."
+                    )
+                }
+            )
+
+        instance.delete()
 
 
 class CourseSessionViewSet(viewsets.ModelViewSet):
