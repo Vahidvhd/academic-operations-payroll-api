@@ -98,8 +98,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("teacher", response.data)
-
+        self.assertIn(
+            "teacher",
+            response.data["error_message"],
+        )
 
     def test_cannot_assign_inactive_teacher(self):
         inactive_teacher = User.objects.create_user(
@@ -125,8 +127,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("teacher", response.data)
-
+        self.assertIn(
+            "teacher",
+            response.data["error_message"],
+        )
 
     def test_cannot_assign_teacher_to_soft_deleted_course_class(self):
         deleted_course_class = CourseClass.objects.create(
@@ -153,8 +157,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("course_class", response.data)
-
+        self.assertIn(
+            "course_class",
+            response.data["error_message"],
+        )
 
     def test_assignment_cannot_start_before_course_class(self):
         self.client.force_authenticate(user=self.education_officer)
@@ -170,8 +176,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("start_date", response.data)
-
+        self.assertIn(
+            "start_date",
+            response.data["error_message"],
+        )
 
     def test_assignment_cannot_end_after_course_class(self):
         self.client.force_authenticate(user=self.education_officer)
@@ -187,8 +195,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("end_date", response.data)
-
+        self.assertIn(
+            "end_date",
+            response.data["error_message"],
+        )
 
     def test_assignments_for_same_course_class_cannot_overlap(self):
         TeacherClassAssignment.objects.create(
@@ -220,8 +230,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("start_date", response.data)
-
+        self.assertIn(
+            "start_date",
+            response.data["error_message"],
+        )
 
     def test_open_assignment_cannot_overlap_new_assignment(self):
         TeacherClassAssignment.objects.create(
@@ -253,8 +265,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("start_date", response.data)
-
+        self.assertIn(
+            "start_date",
+            response.data["error_message"],
+        )
 
     def test_sequential_assignments_are_allowed(self):
         TeacherClassAssignment.objects.create(
@@ -353,7 +367,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("start_date", response.data)
+        self.assertIn(
+            "start_date",
+            response.data["error_message"],
+        )
 
 
     def test_teacher_cannot_list_teacher_class_assignments(self):
@@ -473,8 +490,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("start_date", response.data)
-
+        self.assertIn(
+            "start_date",
+            response.data["error_message"],
+        )
 
     def test_assignment_end_date_cannot_be_before_start_date(self):
         self.client.force_authenticate(user=self.education_officer)
@@ -490,8 +509,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("end_date", response.data)
-
+        self.assertIn(
+            "end_date",
+            response.data["error_message"],
+        )
 
     def test_assignment_cannot_start_after_course_class_ends(self):
         self.client.force_authenticate(user=self.education_officer)
@@ -508,8 +529,10 @@ class TeacherClassAssignmentAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("start_date", response.data)
-
+        self.assertIn(
+            "start_date",
+            response.data["error_message"],
+        )
 
     def test_cannot_change_teacher_when_assignment_has_reported_session(self):
         assignment = TeacherClassAssignment.objects.create(

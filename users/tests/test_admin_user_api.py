@@ -81,7 +81,10 @@ class AdminUserCreateAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("phone_number", response.data)
+        self.assertIn(
+            "phone_number",
+            response.data["error_message"],
+        )
 
 
     def test_superuser_can_create_education_officer_without_phone_numbers(self):
@@ -260,7 +263,10 @@ class AdminUserCreateAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("password", response.data)
+        self.assertIn(
+            "password",
+            response.data["error_message"],
+        )
 
         self.assertFalse(
             User.objects.filter(
@@ -298,5 +304,5 @@ class AdminUserCreateAPITests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn(
             "emergency_phone_number",
-            response.data,
+            response.data["error_message"],
         )
