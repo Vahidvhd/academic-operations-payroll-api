@@ -79,9 +79,7 @@ def get_approved_reports_for_teacher_month(teacher, year, month):
         month,
     )
 
-    reports = SessionReport.objects.filter(
-        session__in=sessions,
-    )
+    reports = SessionReport.objects.filter(session__in=sessions).select_related("session__course_class__term")
 
     if reports.count() != sessions.count():
         raise ValueError(
