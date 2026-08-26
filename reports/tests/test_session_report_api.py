@@ -439,6 +439,8 @@ class SessionReportAPITests(APITestCase):
         self.assertEqual(report.present_count, 11)
         self.assertEqual(report.absent_count, 1)
         self.assertEqual(report.status, SessionReport.Status.PENDING)
+        self.assertIsNone(report.reviewed_by)
+        self.assertEqual(report.review_note, "")
         self.assertEqual(ReportStatusHistory.objects.count(), 1)
 
         history = ReportStatusHistory.objects.get()

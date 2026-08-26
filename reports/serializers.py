@@ -84,7 +84,9 @@ class SessionReportSerializer(serializers.ModelSerializer):
 
         validated_data["status"] = SessionReport.Status.PENDING
         validated_data["submitted_at"] = timezone.now()
-
+        validated_data["reviewed_by"] = None
+        validated_data["review_note"] = ""
+        
         with transaction.atomic():
             report = super().update(instance, validated_data)
 
