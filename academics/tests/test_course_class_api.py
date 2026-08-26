@@ -12,6 +12,7 @@ from academics.models import (
     TeacherClassAssignment,
     Term,
 )
+from reports.models import SessionReport
 
 User = get_user_model()
 
@@ -1445,3 +1446,96 @@ class CourseClassAPITests(APITestCase):
                 "last_name": self.teacher.last_name,
             },
         )
+
+
+    def test_cannot_update_course_class_after_related_report(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY130",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        session = CourseSession.objects.create(
+            course_class=course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=0,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer
+        )
+
+        url = reverse(
+            "course-class-detail",
+            args=[course_class.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {
+                "title": "Changed title",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        course_class.refresh_from_db()
+
+        self.assertEqual(
+            course_class.title,
+            "Python",
+        )
+
+
+    def test_cannot_delete_course_class_after_related_report(self):
+        course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Python",
+            class_code="PY131",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        session = CourseSession.objects.create(
+            course_class=course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=0,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer
+        )
+
+        url = reverse(
+            "course-class-detail",
+            args=[course_class.id],
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 400)
+
+        course_class.refresh_from_db()
+        self.assertFalse(course_class.is_deleted)

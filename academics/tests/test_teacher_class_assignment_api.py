@@ -747,3 +747,81 @@ class TeacherClassAssignmentAPITests(APITestCase):
         assignment.refresh_from_db()
 
         self.assertEqual(str(assignment.end_date), "2026-09-10")
+
+
+    def test_cannot_move_assignment_start_date_past_reported_session(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 9, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[assignment.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {
+                "start_date": "2026-09-12",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        assignment.refresh_from_db()
+
+        self.assertEqual(
+            str(assignment.start_date),
+            "2026-09-01",
+        )
+
+
+    def test_can_delete_assignment_without_reported_sessions(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[assignment.id],
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 204)
+
+        self.assertFalse(
+            TeacherClassAssignment.objects.filter(
+                id=assignment.id
+            ).exists()
+        )

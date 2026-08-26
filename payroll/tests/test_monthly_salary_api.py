@@ -482,3 +482,124 @@ class MonthlySalaryAPITests(APITestCase):
                 teacher=second_teacher,
             ).exists()
         )
+
+
+    def test_single_teacher_calculation_fails_when_teacher_has_no_sessions(self):
+        self.client.force_authenticate(
+            user=self.finance_officer
+        )
+
+        url = reverse(
+            "monthly-salary-calculate-teacher"
+        )
+
+        response = self.client.post(
+            url,
+            {
+                "teacher": self.teacher.id,
+                "year": 2026,
+                "month": 9,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("detail", response.data)
+        self.assertEqual(
+            MonthlySalary.objects.count(),
+            0,
+        )
+
+
+    def test_single_teacher_calculation_fails_when_report_is_not_approved(self):
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 9, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            status=SessionReport.Status.PENDING,
+            lesson_summary="Python lesson",
+            present_count=10,
+            absent_count=0,
+            submitted_at=timezone.make_aware(
+                datetime(2026, 9, 10, 12, 0)
+            ),
+        )
+
+        self.client.force_authenticate(
+            user=self.finance_officer
+        )
+
+        url = reverse("monthly-salary-calculate-teacher")
+
+        response = self.client.post(
+            url,
+            {
+                "teacher": self.teacher.id,
+                "year": 2026,
+                "month": 9,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("detail", response.data)
+        self.assertEqual(
+            MonthlySalary.objects.count(),
+            0,
+        )
+
+
+    def test_bulk_calculation_fails_when_teacher_wage_is_missing(self):
+        TeacherTermWage.objects.filter(
+            teacher=self.teacher,
+            term=self.term,
+        ).delete()
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=self.teacher,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 9, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            status=SessionReport.Status.APPROVED,
+            lesson_summary="Python lesson",
+            present_count=10,
+            absent_count=0,
+            submitted_at=timezone.make_aware(
+                datetime(2026, 9, 10, 12, 0)
+            ),
+        )
+
+        self.client.force_authenticate(
+            user=self.finance_officer
+        )
+
+        url = reverse("monthly-salary-calculate")
+
+        response = self.client.post(
+            url,
+            {
+                "year": 2026,
+                "month": 9,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("detail", response.data)
+        self.assertEqual(
+            MonthlySalary.objects.count(),
+            0,
+        )
