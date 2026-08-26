@@ -74,6 +74,16 @@ class CourseClassSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def validate(self, attrs):
+        if self.instance and self.instance.has_reported_sessions():
+            raise serializers.ValidationError(
+                {
+                    "detail": (
+                        "Class cannot be changed after a related report "
+                        "has been submitted."
+                    )
+                }
+            )
+
         if self.instance:
             course_class = CourseClass(
                 school=attrs.get("school", self.instance.school),
@@ -165,7 +175,7 @@ class TeacherClassAssignmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
-    def validate(self, attrs):
+    def validate(self, attrs):        
         if self.instance:
             assignment = TeacherClassAssignment(
                 pk=self.instance.pk,
@@ -181,6 +191,65 @@ class TeacherClassAssignmentSerializer(serializers.ModelSerializer):
                 start_date=attrs.get("start_date"),
                 end_date=attrs.get("end_date"),
             )
+
+        if (
+            self.instance
+            and assignment.course_class != self.instance.course_class
+        ):
+            raise serializers.ValidationError(
+                {
+                    "course_class": (
+                        "Course class cannot be changed for an existing assignment."
+                    )
+                }
+            )
+
+        if self.instance:
+            reported_sessions = self.instance.course_class.sessions.filter(
+                conducted_by__isnull=True,
+                session_datetime__date__gte=self.instance.start_date,
+                report__isnull=False,
+            )
+
+            if self.instance.end_date:
+                reported_sessions = reported_sessions.filter(
+                    session_datetime__date__lte=self.instance.end_date,
+                )
+
+            if reported_sessions.exists():
+                if assignment.teacher != self.instance.teacher:
+                    raise serializers.ValidationError(
+                        {
+                            "teacher": (
+                                "Teacher cannot be changed for an assignment "
+                                "with reported sessions."
+                            )
+                        }
+                    )
+
+                for session in reported_sessions:
+                    session_date = session.session_datetime.date()
+
+                    if session_date < assignment.start_date:
+                        raise serializers.ValidationError(
+                            {
+                                "start_date": (
+                                    "Assignment cannot exclude a session "
+                                    "that already has a report."
+                                )
+                            }
+                        )
+
+                    if assignment.end_date and session_date > assignment.end_date:
+                        raise serializers.ValidationError(
+                            {
+                                "end_date": (
+                                    "Assignment cannot exclude a session "
+                                    "that already has a report."
+                                )
+                            }
+                        )
+        
 
         try:
             assignment.clean()
@@ -200,6 +269,7 @@ class CourseSessionSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "course_class",
+            "conducted_by",
             "session_datetime",
             "session_number",
             "created_at",
@@ -209,12 +279,25 @@ class CourseSessionSerializer(serializers.ModelSerializer):
 
 
     def validate(self, attrs):
+        if self.instance and self.instance.has_report():
+            raise serializers.ValidationError(
+                {
+                    "detail": (
+                        "Session cannot be changed after a report has been submitted."
+                    )
+                }
+            )
+        
         if self.instance:
             session = CourseSession(
                 pk=self.instance.pk,
                 course_class=attrs.get(
                     "course_class",
                     self.instance.course_class,
+                ),
+                conducted_by=attrs.get(
+                    "conducted_by",
+                    self.instance.conducted_by,
                 ),
                 session_datetime=attrs.get(
                     "session_datetime",
@@ -228,6 +311,7 @@ class CourseSessionSerializer(serializers.ModelSerializer):
         else:
             session = CourseSession(
                 course_class=attrs.get("course_class"),
+                conducted_by=attrs.get("conducted_by"),
                 session_datetime=attrs.get("session_datetime"),
                 session_number=attrs.get("session_number"),
             )

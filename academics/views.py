@@ -1,4 +1,3 @@
-from django.db.models import F, Q
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
@@ -21,6 +20,7 @@ from .serializers import (
     TeacherClassAssignmentSerializer,
     TermSerializer,
 )
+from .services import filter_sessions_for_teacher
 
 
 class SchoolViewSet(viewsets.ModelViewSet):
@@ -29,10 +29,14 @@ class SchoolViewSet(viewsets.ModelViewSet):
     permission_classes = [IsEducationOfficer]
 
     def perform_destroy(self, instance):
+        if instance.course_classes.filter(is_deleted=False).exists():
+            raise ValidationError(
+                {"detail": "A school with active classes cannot be deleted."}
+            )
+
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()
-
 
 class TermViewSet(viewsets.ModelViewSet):
     queryset = Term.objects.filter(is_deleted=False)
@@ -41,9 +45,9 @@ class TermViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def perform_destroy(self, instance):
-        if instance.course_classes.exists():
+        if instance.course_classes.filter(is_deleted=False).exists():
             raise ValidationError(
-                {"detail": "A term with classes cannot be deleted."}
+                {"detail": "A term with active classes cannot be deleted."}
             )
 
         instance.is_deleted = True
@@ -79,7 +83,36 @@ class CourseClassViewSet(viewsets.ModelViewSet):
 
         return CourseClassSerializer
 
+
     def perform_destroy(self, instance):
+        if instance.has_reported_sessions():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Class cannot be deleted after a related report "
+                        "has been submitted."
+                    )
+                }
+            )
+
+        if instance.sessions.filter(is_deleted=False).exists():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "A class with active sessions cannot be deleted."
+                    )
+                }
+            )
+
+        if instance.teacher_assignments.exists():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "A class with teacher assignments cannot be deleted."
+                    )
+                }
+            )
+
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()
@@ -89,6 +122,19 @@ class TeacherClassAssignmentViewSet(viewsets.ModelViewSet):
     queryset = TeacherClassAssignment.objects.all()
     serializer_class = TeacherClassAssignmentSerializer
     permission_classes = [IsEducationOfficer]
+
+    def perform_destroy(self, instance):
+        if instance.has_reported_sessions():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Assignment cannot be deleted after a related report "
+                        "has been submitted."
+                    )
+                }
+            )
+
+        instance.delete()
 
 
 class CourseSessionViewSet(viewsets.ModelViewSet):
@@ -100,22 +146,23 @@ class CourseSessionViewSet(viewsets.ModelViewSet):
         queryset = CourseSession.objects.filter(is_deleted=False)
 
         if self.request.user.role == "teacher":
-            return queryset.filter(
-                Q(course_class__teacher_assignments__end_date__isnull=True)
-                | Q(
-                    session_datetime__date__lte=F(
-                        "course_class__teacher_assignments__end_date"
-                    )
-                ),
-                course_class__teacher_assignments__teacher=self.request.user,
-                session_datetime__date__gte=F(
-                    "course_class__teacher_assignments__start_date"
-                ),
-            ).distinct()
+            return filter_sessions_for_teacher(
+                queryset,
+                self.request.user.id,
+            )
 
         return queryset
 
     def perform_destroy(self, instance):
+        if instance.has_report():
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Session cannot be deleted after a report has been submitted."
+                    )
+                }
+            )
+
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()

@@ -87,6 +87,11 @@ class CourseClass(TimeStampedModel, SoftDeleteModel):
             )
         ]
 
+    def has_reported_sessions(self):
+        return self.sessions.filter(
+            report__isnull=False,
+        ).exists()
+
     def clean(self):
         super().clean()
 
@@ -114,6 +119,22 @@ class TeacherClassAssignment(TimeStampedModel):
         related_name="teacher_assignments")
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
+
+
+    def has_reported_sessions(self):
+        sessions = self.course_class.sessions.filter(
+            conducted_by__isnull=True,
+            session_datetime__date__gte=self.start_date,
+            report__isnull=False,
+        )
+
+        if self.end_date:
+            sessions = sessions.filter(
+                session_datetime__date__lte=self.end_date,
+            )
+
+        return sessions.exists()
+
 
     def clean(self):
         super().clean()
@@ -166,6 +187,13 @@ class CourseSession(TimeStampedModel, SoftDeleteModel):
         on_delete=models.PROTECT,
         related_name="sessions",
     )
+    conducted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="conducted_sessions",
+        null=True,
+        blank=True,
+    )
     session_datetime = models.DateTimeField()
     session_number = models.PositiveIntegerField(validators=[MinValueValidator(1)])
 
@@ -179,6 +207,9 @@ class CourseSession(TimeStampedModel, SoftDeleteModel):
         ]
 
     def clean(self):
+        if self.conducted_by_id and self.conducted_by.role != "teacher":
+            raise ValidationError({"conducted_by": "Selected user must have the teacher role."})
+        
         if not self.course_class_id or not self.session_datetime:
             return
 
@@ -214,6 +245,28 @@ class CourseSession(TimeStampedModel, SoftDeleteModel):
                 raise ValidationError(
                     {"session_datetime": "Session cannot overlap with another session."}
                 )
+
+
+    def has_report(self):
+        return hasattr(self, "report")
+
+
+    def get_effective_teacher(self):
+        if self.conducted_by:
+            return self.conducted_by
+
+        session_date = self.session_datetime.date()
+
+        assignment = self.course_class.teacher_assignments.filter(
+            start_date__lte=session_date,
+        ).exclude(
+            end_date__lt=session_date
+        ).first()
+
+        if assignment:
+            return assignment.teacher
+
+        return None
 
     def __str__(self):
         return f"{self.course_class} - Session {self.session_number}"

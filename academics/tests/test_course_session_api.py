@@ -9,6 +9,7 @@ from academics.models import (
     TeacherClassAssignment,
     Term,
 )
+from reports.models import SessionReport
 
 User = get_user_model()
 
@@ -566,3 +567,203 @@ class CourseSessionAPITests(APITestCase):
             ).count(),
             1,
         )
+
+
+    def test_education_officer_can_create_session_with_substitute_teacher(self):
+        substitute_teacher = User.objects.create_user(
+            username="substitute_teacher",
+            first_name="Substitute",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07111111111",
+            emergency_phone_number="07222222222",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        data = {
+            "course_class": self.course_class.id,
+            "conducted_by": substitute_teacher.id,
+            "session_datetime": "2026-09-10T10:00:00Z",
+            "session_number": 1,
+        }
+
+        response = self.client.post(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+
+        session = CourseSession.objects.get()
+
+        self.assertEqual(
+            session.conducted_by,
+            substitute_teacher,
+        )
+        self.assertEqual(
+            response.data["conducted_by"],
+            substitute_teacher.id,
+        )
+
+
+    def test_conducted_by_must_be_teacher(self):
+        self.client.force_authenticate(user=self.education_officer)
+
+        data = {
+            "course_class": self.course_class.id,
+            "conducted_by": self.education_officer.id,
+            "session_datetime": "2026-09-10T10:00:00Z",
+            "session_number": 1,
+        }
+
+        response = self.client.post(
+            self.url,
+            data,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("conducted_by", response.data)
+        self.assertEqual(CourseSession.objects.count(), 0)
+
+
+    def test_substitute_teacher_can_view_conducted_session(self):
+        substitute_teacher = User.objects.create_user(
+            username="substitute_view_teacher",
+            role=User.Role.TEACHER,
+            phone_number="07333333333",
+            emergency_phone_number="07444444444",
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=substitute_teacher,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        self.client.force_authenticate(user=substitute_teacher)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], session.id)
+
+
+    def test_assigned_teacher_cannot_view_session_with_substitute(self):
+        assigned_teacher = User.objects.create_user(
+            username="assigned_teacher",
+            role=User.Role.TEACHER,
+        )
+
+        substitute_teacher = User.objects.create_user(
+            username="substitute_teacher_hidden",
+            role=User.Role.TEACHER,
+        )
+
+        TeacherClassAssignment.objects.create(
+            course_class=self.course_class,
+            teacher=assigned_teacher,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        CourseSession.objects.create(
+            course_class=self.course_class,
+            conducted_by=substitute_teacher,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        self.client.force_authenticate(user=assigned_teacher)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+
+
+    def test_cannot_update_course_session_after_report_submitted(self):
+        teacher = User.objects.create_user(
+            username="reported_session_teacher",
+            role=User.Role.TEACHER,
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Test lesson",
+            present_count=10,
+            absent_count=0,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer
+        )
+
+        url = reverse(
+            "course-session-detail",
+            args=[session.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {
+                "session_datetime": "2026-10-10T10:00:00Z",
+                "conducted_by": teacher.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        session.refresh_from_db()
+
+        self.assertIsNone(session.conducted_by)
+        self.assertEqual(
+            session.session_datetime.month,
+            9,
+        )
+
+
+    def test_cannot_soft_delete_course_session_after_report_submitted(self):
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime="2026-09-10T10:00:00Z",
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Test lesson",
+            present_count=10,
+            absent_count=0,
+            submitted_at="2026-09-10T12:00:00Z",
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer
+        )
+
+        url = reverse(
+            "course-session-detail",
+            args=[session.id],
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 400)
+
+        session.refresh_from_db()
+
+        self.assertFalse(session.is_deleted)
+        self.assertIsNone(session.deleted_at)

@@ -1,8 +1,18 @@
+from datetime import datetime
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from academics.models import CourseClass, School, TeacherClassAssignment, Term
+from academics.models import (
+    CourseClass,
+    CourseSession,
+    School,
+    TeacherClassAssignment,
+    Term,
+)
+from reports.models import SessionReport
 
 User = get_user_model()
 
@@ -499,3 +509,319 @@ class TeacherClassAssignmentAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("start_date", response.data)
+
+
+    def test_cannot_change_teacher_when_assignment_has_reported_session(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 9, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        second_teacher = User.objects.create_user(
+            username="teacher2",
+            first_name="Second",
+            last_name="Teacher",
+            role=User.Role.TEACHER,
+            phone_number="07555555555",
+            emergency_phone_number="07666666666",
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[assignment.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {
+                "teacher": second_teacher.id,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        assignment.refresh_from_db()
+
+        self.assertEqual(assignment.teacher, self.teacher)
+
+
+    def test_cannot_shorten_assignment_past_reported_session(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 9, 12, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[assignment.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {
+                "end_date": "2026-09-10",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        assignment.refresh_from_db()
+
+        self.assertEqual(str(assignment.end_date), "2026-09-30")
+
+
+    def test_cannot_delete_assignment_with_reported_session(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 9, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[assignment.id],
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 400)
+
+        self.assertTrue(
+            TeacherClassAssignment.objects.filter(
+                id=assignment.id,
+            ).exists()
+        )
+
+
+    def test_cannot_change_course_class_of_existing_assignment(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        second_course_class = CourseClass.objects.create(
+            school=self.school,
+            term=self.term,
+            title="Django",
+            class_code="DJ101",
+            start_date="2026-09-01",
+            end_date="2026-12-31",
+            session_duration=90,
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[assignment.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {
+                "course_class": second_course_class.id,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        assignment.refresh_from_db()
+
+        self.assertEqual(
+            assignment.course_class,
+            self.course_class,
+        )
+
+
+    def test_can_shorten_assignment_if_reported_sessions_stay_in_range(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 9, 5, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[assignment.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {
+                "end_date": "2026-09-10",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        assignment.refresh_from_db()
+
+        self.assertEqual(str(assignment.end_date), "2026-09-10")
+
+
+    def test_cannot_move_assignment_start_date_past_reported_session(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        session = CourseSession.objects.create(
+            course_class=self.course_class,
+            session_datetime=timezone.make_aware(
+                datetime(2026, 9, 10, 10, 0)
+            ),
+            session_number=1,
+        )
+
+        SessionReport.objects.create(
+            session=session,
+            lesson_summary="Python basics",
+            present_count=10,
+            absent_count=2,
+            submitted_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[assignment.id],
+        )
+
+        response = self.client.patch(
+            url,
+            {
+                "start_date": "2026-09-12",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        assignment.refresh_from_db()
+
+        self.assertEqual(
+            str(assignment.start_date),
+            "2026-09-01",
+        )
+
+
+    def test_can_delete_assignment_without_reported_sessions(self):
+        assignment = TeacherClassAssignment.objects.create(
+            teacher=self.teacher,
+            course_class=self.course_class,
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+        )
+
+        self.client.force_authenticate(
+            user=self.education_officer,
+        )
+
+        url = reverse(
+            "teacher-class-assignment-detail",
+            args=[assignment.id],
+        )
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 204)
+
+        self.assertFalse(
+            TeacherClassAssignment.objects.filter(
+                id=assignment.id
+            ).exists()
+        )

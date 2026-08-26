@@ -3,7 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
-from academics.models import CourseSession, TeacherClassAssignment
+from academics.models import CourseSession
 from reports.models import ReportStatusHistory, SessionReport
 
 
@@ -48,16 +48,10 @@ class SessionReportSerializer(serializers.ModelSerializer):
             and request.user.role == "teacher"
         ):
             session = attrs.get("session")
-            session_date = session.session_datetime.date()
-
-            owns_session = TeacherClassAssignment.objects.filter(
-                teacher=request.user,
-                course_class=session.course_class,
-                start_date__lte=session_date,
-            ).exclude(end_date__lt=session_date).exists()
+            owns_session = session.get_effective_teacher() == request.user
 
             if not owns_session:
-                raise serializers.ValidationError({"session": ("You can only report sessions from your own assignment.")})
+                raise serializers.ValidationError({"session": ("You can only report sessions assigned to or conducted by you.")})
 
         if (
             self.instance is not None
@@ -90,7 +84,9 @@ class SessionReportSerializer(serializers.ModelSerializer):
 
         validated_data["status"] = SessionReport.Status.PENDING
         validated_data["submitted_at"] = timezone.now()
-
+        validated_data["reviewed_by"] = None
+        validated_data["review_note"] = ""
+        
         with transaction.atomic():
             report = super().update(instance, validated_data)
 
