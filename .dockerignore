@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+__MACOSX/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+db.sqlite3
+.DS_Store
+.vscode/
+.idea/
