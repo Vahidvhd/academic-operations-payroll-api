@@ -3,40 +3,35 @@
 [![CI](https://github.com/Vahidvhd/instructor-reporting-payroll-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Vahidvhd/instructor-reporting-payroll-api/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/Vahidvhd/instructor-reporting-payroll-api/graph/badge.svg?token=P54EYCF2QU)](https://codecov.io/github/Vahidvhd/instructor-reporting-payroll-api)
 
-A Django REST Framework backend for managing academic operations, instructor assignments, course sessions, and instructor reporting workflows.
+A Django REST Framework backend for managing academic operations, instructor reporting, report review, and monthly payroll.
 
-The project demonstrates backend engineering beyond basic CRUD, including role-based access control, historical teacher assignments, cross-model validation, transactional workflows, audit history, soft deletion, automated testing, and CI/CD tooling.
+The project goes beyond basic CRUD by implementing role-based access control, historical teacher assignments, substitute-teacher handling, cross-model validation, audit history, soft deletion, transactional workflows, automated payroll calculations, API throttling, and end-to-end testing.
 
-**Current status:** Phases 1–3 completed. Payroll calculation is planned for the next phase.
+**Project status:** Complete
 
 ## Key Features
 
 - JWT authentication with access and refresh tokens
-- Custom Django user model
-- Role-based access control for:
-  - Teacher
-  - Education Officer
-  - Finance Officer
+- Three business roles: Teacher, Education Officer, and Finance Officer
 - Superuser-only user creation API
-- Configured Django Admin for operational management
-- School, academic term, course class, and session management
-- Historical teacher-to-class assignments
+- School, term, class, session, and teacher-assignment management
+- Historical teacher assignments and substitute-teacher support
 - Teacher-specific data visibility
-- Course and report filtering
+- Session and assignment overlap validation
 - Soft deletion for key academic records
-- Session scheduling with overlap validation
-- Instructor session reporting
-- Approval and rejection workflow
-- Rejected report editing and resubmission
-- Mandatory rejection reasons
-- 48-hour report lateness calculation
+- Report submission, rejection, resubmission, and approval workflow
 - Report status audit history
-- Monthly report status summaries
-- Transactional bulk report approval
-- OpenAPI schema and Swagger documentation
-- PostgreSQL with Docker Compose
+- Monthly report summaries and atomic bulk approval
+- 48-hour lateness calculation with hourly penalties
+- Term-based wage management
+- Monthly salary and per-session payroll breakdowns
+- Summer-term and session-duration wage adjustments
+- Global API throttling with stricter login protection
+- Consistent API error responses
+- OpenAPI schema and Swagger UI
+- Docker Compose setup with PostgreSQL
 - GitHub Actions CI and Codecov integration
-- 269 automated tests
+- 382 automated tests, including a complete E2E workflow
 - 97% test coverage
 
 ## Tech Stack
@@ -47,59 +42,120 @@ The project demonstrates backend engineering beyond basic CRUD, including role-b
 - PostgreSQL 17
 - Simple JWT
 - django-filter
-- Docker / Docker Compose
 - drf-spectacular
+- Docker and Docker Compose
 - Coverage.py
 - GitHub Actions
 - Codecov
 
 ## Core Workflow
 
-An Education Officer manages schools, terms, classes, teacher assignments, and course sessions.
+1. An Education Officer creates schools, terms, classes, teacher assignments, and course sessions.
+2. A Teacher submits a report after completing an assigned session.
+3. The report starts as `pending`.
+4. An Education Officer approves or rejects the report. Rejection requires a review note.
+5. A rejected report can be edited and resubmitted by the Teacher.
+6. Every status change is recorded in the report history.
+7. A Finance Officer sets the Teacher's wage for the relevant term.
+8. Once all reports for the Teacher and month are approved, the Finance Officer calculates the monthly salary.
+9. The Teacher can view only their own calculated salaries.
 
-Teachers can access only the classes and sessions relevant to their assignments. After a session ends, the assigned teacher can submit a report containing the lesson summary and attendance figures.
+If a session has an explicit substitute teacher, the report and salary belong to that teacher instead of the teacher assigned to the class for that date.
 
-Reports start as `pending`.
+## Roles and Permissions
 
-An Education Officer can then:
+### Teacher
 
-- approve a report
-- reject a report with a required reason
-- review report status history
-- filter reports by school, class, teacher, and date
-- approve multiple selected reports in one atomic bulk operation
+Teachers can:
 
-A rejected report can be edited and resubmitted by the teacher, returning it to `pending`.
+- view their assigned classes and sessions
+- submit reports only for sessions assigned to or conducted by them
+- view their own reports
+- edit and resubmit rejected reports
+- view their monthly report-status summary
+- view their own calculated salaries
 
-When a report is approved, the system calculates lateness from the end of the session using a 48-hour grace period. Any partial hour beyond the grace period is rounded up.
+Teachers cannot manage academic data, review reports, set wages, or calculate salaries.
 
-Status transitions are recorded in an audit history with the user responsible for the change and the timestamp.
+### Education Officer
 
-## Database Design
+Education Officers can:
 
-The data model preserves historical teacher assignments and report status changes rather than overwriting operational history.
+- manage schools, terms, classes, assignments, and sessions
+- view and filter submitted reports
+- approve or reject reports
+- bulk approve selected reports
+- view report status history
 
-![Entity Relationship Diagram](docs/erd/erd.png)
+### Finance Officer
 
-The editable Draw.io source is available at [`docs/erd/erd.drawio`](docs/erd/erd.drawio).
+Finance Officers can:
+
+- create and view term wage rates
+- update an existing wage only before its term starts
+- calculate payroll for one Teacher or all eligible Teachers in a month
+- view all calculated monthly salaries
+
+### System Administrator
+
+Django staff and superuser permissions remain separate from the three business roles.
+
+Superusers can create application users through Django Admin or the protected user-creation endpoint. Reports and report-history records are read-only in Django Admin so the application workflow cannot be bypassed.
+
+## Business Rules
+
+### Academic Operations
+
+- Terms start on the first day of a month and end on the final day of a month.
+- Active terms cannot overlap.
+- Class dates remain within their term.
+- Session duration is limited to 60, 90, or 120 minutes.
+- Teacher assignments remain within class dates and cannot overlap for the same class.
+- Sessions remain within class dates and cannot overlap.
+- Active session numbers are unique within each class.
+- Academic records connected to submitted reports cannot be changed or deleted in ways that would break history.
+
+### Reporting
+
+- A report can be submitted only after its session ends.
+- A Teacher can report only a session assigned to or explicitly conducted by them.
+- New and resubmitted reports have `pending` status.
+- Only rejected reports can be edited by a Teacher.
+- Rejecting a report requires a review note.
+- Editing a rejected report clears its previous review and resubmits it.
+- Approved reports are final and cannot be reviewed again.
+- Status transitions are stored in an audit history.
+
+### Lateness and Payroll
+
+- Lateness is measured from the session end until final approval.
+- The first 48 hours are penalty-free.
+- Any fraction of an hour after the grace period is rounded up.
+- Each late hour deducts 1% of that session's amount.
+- The penalty is capped at 100%, so the final session amount cannot become negative.
+- Wage rates are defined for a 90-minute session.
+- A 60-minute session pays 70% of the base rate.
+- A 90-minute session pays 100% of the base rate.
+- A 120-minute session pays 130% of the base rate.
+- Summer-term sessions receive a 10% increase before penalties.
+- A wage can be created after a term starts if no wage exists, but an existing wage cannot be edited after the term starts.
+- Every session in the selected month must have an approved report before that Teacher's salary can be calculated.
+- Recalculation updates the existing monthly salary and rebuilds its item breakdown without creating duplicates.
 
 ## API Overview
 
-Authentication:
+### Authentication and Users
 
 ```text
 POST /api/auth/token/
 POST /api/auth/token/refresh/
 GET  /api/users/me/
-```
-
-Superuser management:
-
-```text
 POST /api/users/admin/create/
 ```
 
-Academic operations:
+JWT access tokens remain valid for one hour and refresh tokens for one day.
+
+### Academic Operations
 
 ```text
 /api/schools/
@@ -109,109 +165,107 @@ Academic operations:
 /api/course-sessions/
 ```
 
-Instructor reporting:
+These router endpoints provide the allowed list, retrieve, create, update, and delete operations according to the authenticated user's role and the resource's business rules.
+
+### Reporting
 
 ```text
-GET  /api/reports/
-POST /api/reports/
-
+GET   /api/reports/
+POST  /api/reports/
 GET   /api/reports/<id>/
 PATCH /api/reports/<id>/
 
-POST /api/reports/<id>/review/
-GET  /api/reports/<id>/history/
+POST  /api/reports/<id>/review/
+GET   /api/reports/<id>/history/
 
-GET  /api/reports/monthly-summary/?year=2026&month=8
-POST /api/reports/bulk-approve/
+GET   /api/reports/monthly-summary/?year=2026&month=8
+POST  /api/reports/bulk-approve/
 ```
 
-Full endpoint documentation is available through Swagger.
+Reports can be filtered by school, class, teacher, and date range.
 
-## Roles and Permissions
-
-### Teacher
-
-Teachers can:
-
-- view their assigned classes and sessions
-- view their own session reports
-- submit reports only for their own assigned sessions
-- edit and resubmit rejected reports
-- view their monthly report status summary
-
-Teachers cannot approve or reject reports.
-
-### Education Officer
-
-Education Officers can:
-
-- manage academic data
-- manage teacher-class assignments
-- manage course sessions
-- view and filter reports
-- approve or reject reports
-- bulk approve selected reports
-- view report status history
-
-### Finance Officer
-
-The Finance Officer role is defined and protected by the permission system.
-
-Payroll functionality will be introduced in the next phase.
-
-### System Administrator
-
-Django administration is kept separate from business roles.
-
-Django superusers can:
-
-- manage users through `/admin/`
-- assign one of the three business roles
-- create users through the protected Admin API
-
-Report and report-history data are configured as read-only in Django Admin to prevent bypassing the reporting workflow.
-
-## Business Rules
-
-The API enforces domain rules at the model and serializer layers, including:
-
-- terms must start on the first day of a month
-- terms must end on the final day of a month
-- academic terms cannot overlap
-- class dates must remain inside their term
-- session duration must be 60, 90, or 120 minutes
-- teacher assignments must remain inside class dates
-- teacher assignments for the same class cannot overlap
-- scheduled sessions cannot overlap
-- session numbers must be unique within a class
-- teachers can report only sessions belonging to their assignments
-- reports cannot be submitted before a session ends
-- only rejected reports can be edited
-- rejection requires a review note
-- approved reports cannot be reviewed again
-
-## API Documentation
-
-Swagger UI:
+### Payroll
 
 ```text
-http://127.0.0.1:8000/api/docs/
+GET   /api/teacher-term-wages/
+POST  /api/teacher-term-wages/
+GET   /api/teacher-term-wages/<id>/
+PATCH /api/teacher-term-wages/<id>/
+
+GET   /api/monthly-salaries/
+GET   /api/monthly-salaries/<id>/
+POST  /api/monthly-salaries/calculate/
+POST  /api/monthly-salaries/calculate-teacher/
 ```
 
-OpenAPI schema:
+Monthly salaries can be filtered by `year` and `month`.
 
-```text
-http://127.0.0.1:8000/api/schema/
+## API Behaviour
+
+API errors use a consistent response structure:
+
+```json
+{
+  "error_code": 400,
+  "error_message": {
+    "field_name": ["Validation message."]
+  }
+}
 ```
 
-## Local Setup
+Default request limits are:
 
-Clone the repository:
+- anonymous users: 100 requests per hour
+- authenticated users: 1,000 requests per hour
+- login endpoint: 5 requests per minute
+
+## Database Design
+
+The data model preserves teacher-assignment history, report status changes, calculated salaries, and individual salary items.
+
+![Entity Relationship Diagram](docs/erd/erd.png)
+
+The editable Draw.io source is available at [`docs/erd/erd.drawio`](docs/erd/erd.drawio).
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.13
+- Docker with Docker Compose
+- Git
+
+Clone the repository and create the environment file:
 
 ```bash
 git clone https://github.com/Vahidvhd/instructor-reporting-payroll-api.git
 cd instructor-reporting-payroll-api
+cp .env.example .env
 ```
+
+Replace the example values in `.env`, especially `SECRET_KEY` and `POSTGRES_PASSWORD`, before starting the project.
+
+### Run the Complete Stack with Docker
+
+Build and start the Django API and PostgreSQL database:
+
+```bash
+docker compose up --build
+```
+
+Docker Compose waits for PostgreSQL, runs migrations, and starts the API at:
+
+```text
+http://127.0.0.1:8000/
+```
+
+Stop the containers with:
+
+```bash
+docker compose down
+```
+
+### Run Django Locally with PostgreSQL in Docker
 
 Create and activate a virtual environment:
 
@@ -220,41 +274,45 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-Install dependencies:
+Install dependencies and start only PostgreSQL:
 
 ```bash
 pip install -r requirements.txt
+docker compose up -d db
 ```
 
-Create the environment file:
-
-```bash
-cp .env.example .env
-```
-
-Start PostgreSQL:
-
-```bash
-docker compose up -d
-```
-
-Run migrations:
+Run migrations and start Django:
 
 ```bash
 python manage.py migrate
+python manage.py runserver
 ```
 
-Optional development users:
+### Optional Sample Users
+
+Create one development user for each business role:
 
 ```bash
 python manage.py seed_sample_users
 ```
 
-Start the API:
+Development credentials created by this command:
 
-```bash
-python manage.py runserver
+```text
+teacher_sample    / SamplePassword@
+education_sample  / SamplePassword@
+finance_sample    / SamplePassword@
 ```
+
+These credentials are intended only for local development.
+
+## API Documentation
+
+After starting the application, open:
+
+- Swagger UI: <http://127.0.0.1:8000/api/docs/>
+- OpenAPI schema: <http://127.0.0.1:8000/api/schema/>
+- Django Admin: <http://127.0.0.1:8000/admin/>
 
 ## Testing
 
@@ -264,34 +322,35 @@ Run the complete test suite:
 python manage.py test
 ```
 
-Run with coverage:
+Run tests with coverage:
 
 ```bash
-coverage run manage.py test
-coverage report
-coverage xml
+python -m coverage run manage.py test
+python -m coverage report
+python -m coverage xml
 ```
 
-Current test suite:
+Current verified results:
 
 ```text
-269 tests
+382 tests passed
 97% coverage
+Django system check: no issues
+Missing migrations: none
 ```
 
-GitHub Actions runs Django system checks, the full test suite, and coverage reporting on pushes and pull requests.
+The test suite includes model, serializer, permission, API, service, throttling, payroll, and full workflow E2E coverage. GitHub Actions runs the complete suite against PostgreSQL and uploads coverage results to Codecov on every push and pull request.
 
 ## Project Structure
 
 ```text
-academics/   Academic models, serializers, filters, APIs, and admin
-reports/     Session reporting workflow, review logic, audit history
-users/       Authentication, roles, permissions, admin user management
-core/        Shared model abstractions
-config/      Django project configuration
-docs/erd/    ERD diagram and editable source
+academics/          Schools, terms, classes, assignments, and sessions
+reports/            Report submission, review, history, and summaries
+payroll/            Wage rates, salary calculation, and salary items
+users/              Authentication, roles, permissions, and user management
+core/               Shared abstract models
+config/             Django settings, URLs, and API error handling
+tests/              End-to-end workflow tests
+docs/erd/            ERD image and editable Draw.io source
+.github/workflows/  Continuous integration configuration
 ```
-
-## Roadmap
-
-The next phase will introduce the payroll workflow, including instructor rates, monthly salary calculation, late-report penalties, and payroll locking rules.
