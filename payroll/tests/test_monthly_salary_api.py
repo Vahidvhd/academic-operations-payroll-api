@@ -504,7 +504,8 @@ class MonthlySalaryAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("detail", response.data)
+        self.assertEqual(response.data["error_code"], 400)
+        self.assertIn("error_message", response.data)
         self.assertEqual(
             MonthlySalary.objects.count(),
             0,
@@ -549,7 +550,8 @@ class MonthlySalaryAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("detail", response.data)
+        self.assertEqual(response.data["error_code"], 400)
+        self.assertIn("error_message", response.data)
         self.assertEqual(
             MonthlySalary.objects.count(),
             0,
@@ -598,7 +600,8 @@ class MonthlySalaryAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("detail", response.data)
+        self.assertEqual(response.data["error_code"], 400)
+        self.assertIn("error_message", response.data)
         self.assertEqual(
             MonthlySalary.objects.count(),
             0,

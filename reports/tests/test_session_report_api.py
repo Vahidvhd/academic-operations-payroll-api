@@ -132,7 +132,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("session", response.data)
+        self.assertIn(
+            "session",
+            response.data["error_message"],
+        )
         self.assertEqual(SessionReport.objects.count(), 0)
 
 
@@ -161,7 +164,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("session", response.data)
+        self.assertIn(
+            "session",
+            response.data["error_message"],
+        )
         self.assertEqual(SessionReport.objects.count(), 1)
 
     def test_teacher_cannot_create_report_with_negative_attendance(self):
@@ -181,8 +187,14 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("present_count", response.data)
-        self.assertIn("absent_count", response.data)
+        self.assertIn(
+            "present_count",
+            response.data["error_message"],
+        )
+        self.assertIn(
+            "absent_count",
+            response.data["error_message"],
+        )
         self.assertEqual(SessionReport.objects.count(), 0)
         
 
@@ -769,7 +781,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("status", response.data)
+        self.assertIn(
+            "status",
+            response.data["error_message"],
+        )
 
         report.refresh_from_db()
         self.assertEqual(report.status, SessionReport.Status.PENDING)
@@ -893,7 +908,11 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("detail", response.data)
+        self.assertEqual(response.data["error_code"], 400)
+        self.assertEqual(
+            response.data["error_message"],
+            "A rejected report can only be approved or resubmitted by the teacher.",
+        )
 
         report.refresh_from_db()
 
@@ -1948,7 +1967,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("year", response.data)
+        self.assertIn(
+            "year",
+            response.data["error_message"],
+        )
 
 
     def test_monthly_summary_requires_month(self):
@@ -1964,7 +1986,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("month", response.data)
+        self.assertIn(
+            "month",
+            response.data["error_message"],
+        )
 
 
     def test_monthly_summary_rejects_invalid_month(self):
@@ -1981,7 +2006,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("month", response.data)
+        self.assertIn(
+            "month",
+            response.data["error_message"],
+        )
 
 
     def test_monthly_summary_rejects_non_integer_year(self):
@@ -1998,7 +2026,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("year", response.data)
+        self.assertIn(
+            "year",
+            response.data["error_message"],
+        )
 
 
     def test_education_officer_cannot_view_monthly_summary(self):
@@ -2203,7 +2234,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("report_ids", response.data)
+        self.assertIn(
+            "report_ids",
+            response.data["error_message"],
+        )
 
         pending_report.refresh_from_db()
 
@@ -2239,7 +2273,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("report_ids", response.data)
+        self.assertIn(
+            "report_ids",
+            response.data["error_message"],
+        )
 
         pending_report.refresh_from_db()
 
@@ -2263,7 +2300,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("report_ids", response.data)
+        self.assertIn(
+            "report_ids",
+            response.data["error_message"],
+        )
 
 
     def test_bulk_approve_rejects_duplicate_report_ids(self):
@@ -2292,7 +2332,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("report_ids", response.data)
+        self.assertIn(
+            "report_ids",
+            response.data["error_message"],
+        )
 
 
     def test_bulk_approve_rejects_non_integer_report_id(self):
@@ -2309,7 +2352,10 @@ class SessionReportAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("report_ids", response.data)
+        self.assertIn(
+            "report_ids",
+            response.data["error_message"],
+        )
 
 
     def test_teacher_cannot_bulk_approve_reports(self):

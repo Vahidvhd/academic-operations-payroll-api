@@ -66,7 +66,10 @@ class TermAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("end_date", response.data)
+        self.assertIn(
+            "end_date",
+            response.data["error_message"],
+        )
 
 
     def test_term_start_date_must_be_first_day_of_month(self):
@@ -82,8 +85,10 @@ class TermAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("start_date", response.data)
-
+        self.assertIn(
+            "start_date",
+            response.data["error_message"],
+        )
 
     def test_term_end_date_must_be_last_day_of_month(self):
         self.client.force_authenticate(user=self.education_officer)
@@ -98,7 +103,10 @@ class TermAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("end_date", response.data)
+        self.assertIn(
+            "end_date",
+            response.data["error_message"],
+        )
 
 
     def test_term_dates_cannot_overlap_existing_term(self):
@@ -120,7 +128,10 @@ class TermAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("start_date", response.data)
+        self.assertIn(
+            "start_date",
+            response.data["error_message"],
+        )
 
 
     def test_empty_term_can_be_soft_deleted(self):
@@ -307,7 +318,10 @@ class TermAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("term_type", response.data)
+        self.assertIn(
+            "term_type",
+            response.data["error_message"],
+        )
 
 
     def test_term_dates_are_required(self):
@@ -321,9 +335,14 @@ class TermAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("start_date", response.data)
-        self.assertIn("end_date", response.data)
-
+        self.assertIn(
+            "start_date",
+            response.data["error_message"],
+        )
+        self.assertIn(
+            "end_date",
+            response.data["error_message"],
+        )
 
     def test_term_string_representation(self):
         term = Term.objects.create(

@@ -99,7 +99,10 @@ class CourseClassAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("end_date", response.data)
+        self.assertIn(
+            "end_date",
+            response.data["error_message"],
+        )
 
 
     def test_course_class_cannot_start_before_term(self):
@@ -119,8 +122,10 @@ class CourseClassAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("start_date", response.data)
-
+        self.assertIn(
+            "start_date",
+            response.data["error_message"],
+        )
 
     def test_course_class_cannot_end_after_term(self):
         self.client.force_authenticate(user=self.education_officer)
@@ -139,8 +144,10 @@ class CourseClassAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("end_date", response.data)
-
+        self.assertIn(
+            "end_date",
+            response.data["error_message"],
+        )
 
     def test_course_class_rejects_invalid_session_duration(self):
         self.client.force_authenticate(user=self.education_officer)
@@ -159,8 +166,10 @@ class CourseClassAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("session_duration", response.data)
-
+        self.assertIn(
+            "session_duration",
+            response.data["error_message"],
+        )
 
     def test_course_class_code_must_be_unique_per_school_and_term(self):
         CourseClass.objects.create(
@@ -242,8 +251,10 @@ class CourseClassAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("end_date", response.data)
-
+        self.assertIn(
+            "end_date",
+            response.data["error_message"],
+        )
 
     def test_education_officer_can_soft_delete_course_class(self):
         course_class = CourseClass.objects.create(
@@ -735,8 +746,10 @@ class CourseClassAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("school", response.data)
-
+        self.assertIn(
+            "school",
+            response.data["error_message"],
+        )
 
     def test_course_class_cannot_use_soft_deleted_term(self):
         deleted_term = Term.objects.create(
@@ -762,8 +775,10 @@ class CourseClassAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("term", response.data)
-
+        self.assertIn(
+            "term",
+            response.data["error_message"],
+        )
 
     # Filtering
     def test_course_classes_can_be_filtered_by_school(self):

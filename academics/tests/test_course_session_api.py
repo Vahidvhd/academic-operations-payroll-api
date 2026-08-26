@@ -625,7 +625,10 @@ class CourseSessionAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("conducted_by", response.data)
+        self.assertIn(
+            "conducted_by",
+            response.data["error_message"],
+        )
         self.assertEqual(CourseSession.objects.count(), 0)
 
 
