@@ -55,8 +55,8 @@ class TermSerializer(serializers.ModelSerializer):
 
 
 class CourseClassSerializer(serializers.ModelSerializer):
-    school = serializers.PrimaryKeyRelatedField(queryset=School.objects.filter(is_deleted=False))
-    term = serializers.PrimaryKeyRelatedField(queryset=Term.objects.filter(is_deleted=False))
+    school = serializers.PrimaryKeyRelatedField(queryset=School.objects.all())
+    term = serializers.PrimaryKeyRelatedField(queryset=Term.objects.all())
     class Meta:
         model = CourseClass
         fields = [
@@ -160,7 +160,7 @@ class TeacherClassAssignmentSerializer(serializers.ModelSerializer):
     )
 
     course_class = serializers.PrimaryKeyRelatedField(
-        queryset=CourseClass.objects.filter(is_deleted=False)
+        queryset=CourseClass.objects.all()
     )
     class Meta:
         model = TeacherClassAssignment
@@ -261,7 +261,7 @@ class TeacherClassAssignmentSerializer(serializers.ModelSerializer):
 
 class CourseSessionSerializer(serializers.ModelSerializer):
     course_class = serializers.PrimaryKeyRelatedField(
-        queryset=CourseClass.objects.filter(is_deleted=False)
+        queryset=CourseClass.objects.all()
     )
 
     class Meta:
@@ -319,7 +319,6 @@ class CourseSessionSerializer(serializers.ModelSerializer):
         existing_sessions = CourseSession.objects.filter(
             course_class=session.course_class,
             session_number=session.session_number,
-            is_deleted=False,
         )
 
         if self.instance:
