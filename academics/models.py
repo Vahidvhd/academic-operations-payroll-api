@@ -17,7 +17,8 @@ class School(TimeStampedModel, SoftDeleteModel):
         constraints = [
             models.UniqueConstraint(
                 fields=("name", "address"),
-                name="unique_school_name_address",
+                condition=models.Q(is_deleted=False),
+                name="unique_active_school_name_address",
             )
         ]
 
@@ -49,10 +50,10 @@ class Term(TimeStampedModel, SoftDeleteModel):
                 raise ValidationError({"end_date": "End date must be the last day of a month."})
 
         if self.start_date and self.end_date:
-            overlapping_terms = Term.objects.filter(is_deleted=False,
-                                                    start_date__lte=self.end_date,
-                                                    end_date__gte=self.start_date)
-
+            overlapping_terms = Term.objects.filter(
+                start_date__lte=self.end_date,
+                end_date__gte=self.start_date,
+            )
             if self.pk:
                 overlapping_terms = overlapping_terms.exclude(pk=self.pk)
 
@@ -83,7 +84,8 @@ class CourseClass(TimeStampedModel, SoftDeleteModel):
         constraints = [
             models.UniqueConstraint(
                 fields=("school", "term", "class_code"),
-                name="unique_course_class_code_per_school_term",
+                condition=models.Q(is_deleted=False),
+                name="unique_active_course_class_code_per_school_term",
             )
         ]
 
@@ -230,7 +232,6 @@ class CourseSession(TimeStampedModel, SoftDeleteModel):
 
         existing_sessions = CourseSession.objects.filter(
             course_class=self.course_class,
-            is_deleted=False,
         )
 
         if self.pk:

@@ -17,14 +17,44 @@ User = get_user_model()
 class SchoolSerializer(serializers.ModelSerializer):
     class Meta:
         model = School
-        fields = ["id",
-                  "name",
-                  "address",
-                  "created_at",
-                  "updated_at"
-                  ]
+        fields = [
+            "id",
+            "name",
+            "address",
+            "created_at",
+            "updated_at",
+        ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
+    def validate(self, attrs):
+        name = attrs.get(
+            "name",
+            self.instance.name if self.instance else None,
+        )
+        address = attrs.get(
+            "address",
+            self.instance.address if self.instance else None,
+        )
+
+        existing_schools = School.objects.filter(
+            name=name,
+            address=address,
+        )
+
+        if self.instance:
+            existing_schools = existing_schools.exclude(pk=self.instance.pk)
+
+        if existing_schools.exists():
+            raise serializers.ValidationError(
+                {
+                    "detail": (
+                        "A school with this name and address already exists."
+                    )
+                }
+            )
+
+        return attrs
+    
 
 class TermSerializer(serializers.ModelSerializer):
     class Meta:
@@ -106,6 +136,24 @@ class CourseClassSerializer(serializers.ModelSerializer):
                 start_date=attrs.get("start_date"),
                 end_date=attrs.get("end_date"),
                 session_duration=attrs.get("session_duration"),
+            )
+
+        existing_classes = CourseClass.objects.filter(
+            school=course_class.school,
+            term=course_class.term,
+            class_code=course_class.class_code,
+        )
+
+        if self.instance:
+            existing_classes = existing_classes.exclude(pk=self.instance.pk)
+
+        if existing_classes.exists():
+            raise serializers.ValidationError(
+                {
+                    "class_code": (
+                        "Class code must be unique for this school and term."
+                    )
+                }
             )
 
         try:
