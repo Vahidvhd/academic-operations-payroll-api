@@ -9,8 +9,19 @@ from academics.models import (
 )
 
 
+class SoftDeleteAdmin(admin.ModelAdmin):
+    def get_queryset(self, request):
+        queryset = self.model.all_objects.all()
+
+        ordering = self.get_ordering(request)
+        if ordering:
+            queryset = queryset.order_by(*ordering)
+
+        return queryset
+
+    
 @admin.register(School)
-class SchoolAdmin(admin.ModelAdmin):
+class SchoolAdmin(SoftDeleteAdmin):
     list_display = (
         "id",
         "name",
@@ -36,7 +47,7 @@ class SchoolAdmin(admin.ModelAdmin):
 
 
 @admin.register(Term)
-class TermAdmin(admin.ModelAdmin):
+class TermAdmin(SoftDeleteAdmin):
     list_display = (
         "id",
         "term_type",
@@ -63,7 +74,7 @@ class TermAdmin(admin.ModelAdmin):
 
 
 @admin.register(CourseClass)
-class CourseClassAdmin(admin.ModelAdmin):
+class CourseClassAdmin(SoftDeleteAdmin):
     list_display = (
         "id",
         "title",
@@ -136,7 +147,7 @@ class TeacherClassAssignmentAdmin(admin.ModelAdmin):
 
 
 @admin.register(CourseSession)
-class CourseSessionAdmin(admin.ModelAdmin):
+class CourseSessionAdmin(SoftDeleteAdmin):
     list_display = (
         "id",
         "course_class",
