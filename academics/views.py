@@ -1,4 +1,3 @@
-from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
 
@@ -24,39 +23,36 @@ from .services import filter_sessions_for_teacher
 
 
 class SchoolViewSet(viewsets.ModelViewSet):
-    queryset = School.objects.filter(is_deleted=False)
+    queryset = School.objects.all()
     serializer_class = SchoolSerializer
     permission_classes = [IsEducationOfficer]
 
     def perform_destroy(self, instance):
-        if instance.course_classes.filter(is_deleted=False).exists():
+        if instance.course_classes.exists():
             raise ValidationError(
                 {"detail": "A school with active classes cannot be deleted."}
             )
 
-        instance.is_deleted = True
-        instance.deleted_at = timezone.now()
-        instance.save()
+        instance.delete()
+
 
 class TermViewSet(viewsets.ModelViewSet):
-    queryset = Term.objects.filter(is_deleted=False)
+    queryset = Term.objects.all()
     serializer_class = TermSerializer
     permission_classes = [IsEducationOfficer]
     http_method_names = ["get", "post", "delete", "head", "options"]
 
     def perform_destroy(self, instance):
-        if instance.course_classes.filter(is_deleted=False).exists():
+        if instance.course_classes.exists():
             raise ValidationError(
                 {"detail": "A term with active classes cannot be deleted."}
             )
 
-        instance.is_deleted = True
-        instance.deleted_at = timezone.now()
-        instance.save()
+        instance.delete()
 
 
 class CourseClassViewSet(viewsets.ModelViewSet):
-    queryset = CourseClass.objects.filter(is_deleted=False)
+    queryset = CourseClass.objects.all()
     serializer_class = CourseClassSerializer
     permission_classes = [IsEducationOfficerOrTeacher]
     filterset_class = CourseClassFilter
@@ -68,7 +64,7 @@ class CourseClassViewSet(viewsets.ModelViewSet):
     ]
 
     def get_queryset(self):
-        queryset = CourseClass.objects.filter(is_deleted=False)
+        queryset = CourseClass.objects.all()
 
         if self.request.user.role == "teacher":
             return queryset.filter(
@@ -95,7 +91,7 @@ class CourseClassViewSet(viewsets.ModelViewSet):
                 }
             )
 
-        if instance.sessions.filter(is_deleted=False).exists():
+        if instance.sessions.exists():
             raise ValidationError(
                 {
                     "detail": (
@@ -113,9 +109,7 @@ class CourseClassViewSet(viewsets.ModelViewSet):
                 }
             )
 
-        instance.is_deleted = True
-        instance.deleted_at = timezone.now()
-        instance.save()
+        instance.delete()
 
         
 class TeacherClassAssignmentViewSet(viewsets.ModelViewSet):
@@ -138,12 +132,12 @@ class TeacherClassAssignmentViewSet(viewsets.ModelViewSet):
 
 
 class CourseSessionViewSet(viewsets.ModelViewSet):
-    queryset = CourseSession.objects.filter(is_deleted=False)
+    queryset = CourseSession.objects.all()
     serializer_class = CourseSessionSerializer
     permission_classes = [IsEducationOfficerOrTeacher]
 
     def get_queryset(self):
-        queryset = CourseSession.objects.filter(is_deleted=False)
+        queryset = CourseSession.objects.all()
 
         if self.request.user.role == "teacher":
             return filter_sessions_for_teacher(
@@ -163,6 +157,4 @@ class CourseSessionViewSet(viewsets.ModelViewSet):
                 }
             )
 
-        instance.is_deleted = True
-        instance.deleted_at = timezone.now()
-        instance.save()
+        instance.delete()
