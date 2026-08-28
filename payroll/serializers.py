@@ -14,7 +14,7 @@ class TeacherTermWageSerializer(serializers.ModelSerializer):
         )
     )
     term = serializers.PrimaryKeyRelatedField(
-        queryset=Term.objects.filter(is_deleted=False)
+        queryset=Term.objects.all()
     )
 
     class Meta:
@@ -65,5 +65,4 @@ class MonthlySalarySerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = fields
-
-
+       
