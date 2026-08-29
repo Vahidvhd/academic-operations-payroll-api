@@ -197,3 +197,29 @@ class SchoolAPITests(APITestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 401)
+
+
+    def test_cannot_create_duplicate_active_school(self):
+        School.objects.create(
+            name="Duplicate School",
+            address="London",
+        )
+
+        self.client.force_authenticate(user=self.education_officer)
+
+        response = self.client.post(
+            self.url,
+            {
+                "name": "Duplicate School",
+                "address": "London",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            School.objects.filter(
+                name="Duplicate School",
+                address="London",
+            ).count(),
+            1,
+        )
