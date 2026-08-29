@@ -19,7 +19,7 @@ class SoftDeleteAdmin(admin.ModelAdmin):
 
         return queryset
 
-    
+
 @admin.register(School)
 class SchoolAdmin(SoftDeleteAdmin):
     list_display = (
@@ -42,6 +42,7 @@ class SchoolAdmin(SoftDeleteAdmin):
     readonly_fields = (
         "created_at",
         "updated_at",
+        "is_deleted",
         "deleted_at",
     )
 
@@ -69,6 +70,7 @@ class TermAdmin(SoftDeleteAdmin):
     readonly_fields = (
         "created_at",
         "updated_at",
+        "is_deleted",
         "deleted_at",
     )
 
@@ -107,6 +109,7 @@ class CourseClassAdmin(SoftDeleteAdmin):
     readonly_fields = (
         "created_at",
         "updated_at",
+        "is_deleted",
         "deleted_at",
     )
 
@@ -174,5 +177,6 @@ class CourseSessionAdmin(SoftDeleteAdmin):
     readonly_fields = (
         "created_at",
         "updated_at",
+        "is_deleted",
         "deleted_at",
     )

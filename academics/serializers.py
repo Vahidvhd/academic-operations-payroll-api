@@ -54,7 +54,7 @@ class SchoolSerializer(serializers.ModelSerializer):
             )
 
         return attrs
-    
+
 
 class TermSerializer(serializers.ModelSerializer):
     class Meta:

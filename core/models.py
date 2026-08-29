@@ -17,6 +17,8 @@ class SoftDeleteQuerySet(models.QuerySet):
             deleted_at=timezone.now(),
         )
 
+    delete.queryset_only = True
+
 
 class SoftDeleteManager(
     models.Manager.from_queryset(SoftDeleteQuerySet)
