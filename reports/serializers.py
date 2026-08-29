@@ -9,7 +9,7 @@ from reports.models import ReportStatusHistory, SessionReport
 
 class SessionReportSerializer(serializers.ModelSerializer):
     session = serializers.PrimaryKeyRelatedField(
-        queryset=CourseSession.objects.filter(is_deleted=False)
+        queryset=CourseSession.objects.all()
     )
     
     class Meta:

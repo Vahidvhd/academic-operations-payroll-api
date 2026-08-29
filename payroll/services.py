@@ -61,7 +61,6 @@ def calculate_session_amount(base_wage_rate, session_duration, is_summer, late_h
 
 def get_teacher_sessions_for_month(teacher, year, month):
     sessions = CourseSession.objects.filter(
-        is_deleted=False,
         session_datetime__year=year,
         session_datetime__month=month,
     )
@@ -237,7 +236,6 @@ def calculate_teacher_monthly_salary(teacher, year, month, calculated_by):
 
 def get_teachers_for_month(year, month):
     sessions = CourseSession.objects.filter(
-        is_deleted=False,
         session_datetime__year=year,
         session_datetime__month=month,
     )
