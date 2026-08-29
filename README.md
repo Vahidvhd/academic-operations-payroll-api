@@ -31,7 +31,7 @@ The project goes beyond basic CRUD by implementing role-based access control, hi
 - OpenAPI schema and Swagger UI
 - Docker Compose setup with PostgreSQL
 - GitHub Actions CI and Codecov integration
-- 388 automated tests, including a complete E2E workflow
+- 390 automated tests, including a complete E2E workflow
 - 97% test coverage
 
 ## Tech Stack
@@ -333,7 +333,7 @@ python -m coverage xml
 Current verified results:
 
 ```text
-388 tests passed
+390 tests passed
 97% coverage
 Django system check: no issues
 Missing migrations: none
