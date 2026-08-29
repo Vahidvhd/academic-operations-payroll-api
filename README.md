@@ -1,9 +1,9 @@
-# Instructor Operations and Payroll API
+# Academic Operations & Payroll API
 
-[![CI](https://github.com/Vahidvhd/instructor-reporting-payroll-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Vahidvhd/instructor-reporting-payroll-api/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/github/Vahidvhd/instructor-reporting-payroll-api/graph/badge.svg?token=P54EYCF2QU)](https://codecov.io/github/Vahidvhd/instructor-reporting-payroll-api)
+[![CI](https://github.com/Vahidvhd/academic-operations-payroll-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Vahidvhd/academic-operations-payroll-api/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/github/Vahidvhd/academic-operations-payroll-api/graph/badge.svg?token=P54EYCF2QU)](https://codecov.io/github/Vahidvhd/academic-operations-payroll-api)
 
-A Django REST Framework backend for managing academic operations, instructor reporting, report review, and monthly payroll.
+A Django REST Framework backend for managing academic operations, instructor assignments, session reporting, approval workflows, and monthly payroll.
 
 The project goes beyond basic CRUD by implementing role-based access control, historical teacher assignments, substitute-teacher handling, cross-model validation, audit history, soft deletion, transactional workflows, automated payroll calculations, API throttling, and end-to-end testing.
 
@@ -221,7 +221,7 @@ Default request limits are:
 
 ## Database Design
 
-The data model preserves teacher-assignment history, report status changes, calculated salaries, and individual salary items.
+The relational data model preserves historical teacher assignments, substitute-teacher attribution, report status transitions, calculated salaries, and per-session payroll items while maintaining data integrity across the workflow.
 
 ![Entity Relationship Diagram](docs/erd/erd.png)
 
@@ -238,8 +238,8 @@ The editable Draw.io source is available at [`docs/erd/erd.drawio`](docs/erd/erd
 Clone the repository and create the environment file:
 
 ```bash
-git clone https://github.com/Vahidvhd/instructor-reporting-payroll-api.git
-cd instructor-reporting-payroll-api
+git clone https://github.com/Vahidvhd/academic-operations-payroll-api.git
+cd academic-operations-payroll-api
 cp .env.example .env
 ```
 
@@ -314,6 +314,32 @@ After starting the application, open:
 - OpenAPI schema: <http://127.0.0.1:8000/api/schema/>
 - Django Admin: <http://127.0.0.1:8000/admin/>
 
+## Postman Collection
+
+A complete Postman collection is included for exploring and testing the main API workflows.
+
+The collection covers:
+
+- JWT authentication and token refresh
+- user and role setup
+- academic operations
+- teacher assignments and substitute-teacher scenarios
+- session reporting and review workflows
+- report status history
+- filtering and search
+- role-based access-control checks
+- individual and bulk payroll calculation
+- end-to-end payroll eligibility scenarios
+
+Files:
+
+- [`Postman Collection`](docs/postman/academic-operations-payroll-api.postman_collection.json)
+- [`Postman Environment`](docs/postman/academic-operations-payroll-api.postman_environment.json)
+
+Import both files into Postman, select the provided environment, and add the required local credentials before running the requests.
+
+The requests are organised in workflow order so generated resource IDs and JWT tokens can be stored automatically in Postman environment variables and reused by later requests.
+
 ## Testing
 
 Run the complete test suite:
@@ -348,9 +374,10 @@ academics/          Schools, terms, classes, assignments, and sessions
 reports/            Report submission, review, history, and summaries
 payroll/            Wage rates, salary calculation, and salary items
 users/              Authentication, roles, permissions, and user management
-core/               Shared abstract models
+core/               Shared abstract models and soft-delete behaviour
 config/             Django settings, URLs, and API error handling
 tests/              End-to-end workflow tests
-docs/erd/            ERD image and editable Draw.io source
+docs/erd/           ERD image and editable Draw.io source
+docs/postman/       Postman collection and environment template
 .github/workflows/  Continuous integration configuration
 ```
