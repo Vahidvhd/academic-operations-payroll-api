@@ -32,7 +32,7 @@ The project goes beyond basic CRUD by implementing role-based access control, hi
 - Docker Compose setup with PostgreSQL
 - GitHub Actions CI and Codecov integration
 - 390 automated tests, including a complete E2E workflow
-- 97% test coverage
+- 98% test coverage
 
 ## Tech Stack
 
@@ -334,7 +334,7 @@ Current verified results:
 
 ```text
 390 tests passed
-97% coverage
+98% coverage
 Django system check: no issues
 Missing migrations: none
 ```
